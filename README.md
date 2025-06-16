@@ -55,11 +55,22 @@ Once deployed, access your backend at:
 
 [https://heroku-backend-nodejs-XXXX.herokuapp.com/api/v1/expenses](https://heroku-backend-nodejs-XXXX.herokuapp.com/api/v1/expenses)
 
+Replace the domain above with your real Heroku-generated URL.
+
 or
 
 [My example deployed](https://heroku-backend-nodejs-fd16668acdd6.herokuapp.com/api/v1/expenses)
 
-Replace the domain above with your real Heroku-generated URL.
+
+or
+
+execute in terminal
+```bash
+
+heroku open
+
+```
+
 
 ---
 
