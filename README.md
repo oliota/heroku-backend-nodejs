@@ -11,31 +11,46 @@ npm install
 npm run dev
 ```
 
-Open in browser or tools like Postman:  
+Then open in the browser or an API tool like Postman:  
 [http://localhost:3000/api/v1/expenses](http://localhost:3000/api/v1/expenses)
 
 ---
 
 ## ☁️ Deploy to Heroku
 
-Make sure you're logged in to the Heroku CLI and the Heroku remote is set:
+Make sure you're logged into the Heroku CLI:
 
 ```bash
 heroku login
+```
+
+Create the Heroku app (only once):
+
+```bash
 heroku create heroku-backend-nodejs --stack heroku-22
 ```
 
-### Deploy to Heroku
+If your local Git branch is not named `main`, you can push using:
 
 ```bash
-npm run heroku:push
+git push heroku master:main
 ```
 
-### Open the deployed app
+Or update the script in `package.json` to:
 
-```bash
-npm run heroku:open
+```json
+"heroku:push": "git push heroku master:main"
 ```
+
+---
+
+## 🌍 Live Deployment
+
+Once deployed, access your backend at:
+
+[https://heroku-backend-nodejs-XXXX.herokuapp.com/api/v1/expenses](https://heroku-backend-nodejs-XXXX.herokuapp.com/api/v1/expenses)
+
+Replace the domain above with your real Heroku-generated URL.
 
 ---
 
@@ -57,5 +72,5 @@ npm run heroku:open
 | Script               | Description                          |
 |----------------------|--------------------------------------|
 | `npm run dev`        | Run the API locally on port 3000     |
-| `npm run heroku:push`| Push to Heroku remote                |
-| `npm run heroku:open`| Open app in browser via Heroku CLI  |
+| `npm run heroku:push`| Push current branch to Heroku's main |
+| `npm run heroku:open`| Open the deployed app in browser     |
