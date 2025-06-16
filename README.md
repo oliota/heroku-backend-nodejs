@@ -14,6 +14,10 @@ npm run dev
 Then open in the browser or an API tool like Postman:  
 [http://localhost:3000/api/v1/expenses](http://localhost:3000/api/v1/expenses)
 
+or
+
+[My example deployed](https://heroku-backend-nodejs-fd16668acdd6.herokuapp.com/api/v1/expenses)
+
 ---
 
 ## ☁️ Deploy to Heroku
@@ -49,6 +53,10 @@ Or update the script in `package.json` to:
 Once deployed, access your backend at:
 
 [https://heroku-backend-nodejs-XXXX.herokuapp.com/api/v1/expenses](https://heroku-backend-nodejs-XXXX.herokuapp.com/api/v1/expenses)
+
+or
+
+[My example deployed](https://heroku-backend-nodejs-fd16668acdd6.herokuapp.com/api/v1/expenses)
 
 Replace the domain above with your real Heroku-generated URL.
 
