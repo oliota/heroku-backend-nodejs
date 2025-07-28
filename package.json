@@ -11,7 +11,9 @@
     "heroku:open": "heroku open"
   },
   "dependencies": {
+    "dotenv": "^17.2.1",
     "express": "^4.18.2",
+    "node-fetch": "^3.3.2",
     "uuid": "^9.0.0"
   }
 }
