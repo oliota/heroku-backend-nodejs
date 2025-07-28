@@ -7,7 +7,7 @@
     "start": "node index.js",
     "dev": "node index.js",
     "heroku:init": "heroku login && heroku create heroku-backend-nodejs --stack heroku-22",
-    "heroku:push": "git push heroku main",
+    "heroku:push": "git push heroku master:main",
     "heroku:open": "heroku open"
   },
   "dependencies": {

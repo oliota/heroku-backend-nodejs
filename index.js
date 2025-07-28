@@ -182,14 +182,33 @@ app.get('/api/v1/summary-svg', async (req, res) => {
     })
   })
 
-  let streak = 0, maxStreak = 0, start = '', end = ''
+  days.sort((a, b) => new Date(a.date) - new Date(b.date))
+
+  let maxStreak = 0, currentStreak = 0
+  let longestStart = '', longestEnd = ''
+  let tempStart = '', tempEnd = ''
+
   for (let i = 0; i < days.length; i++) {
-    if (days[i].count > 0) {
-      if (streak === 0) start = days[i].date
-      streak++
-      end = days[i].date
-      if (streak > maxStreak) maxStreak = streak
-    } else streak = 0
+    const today = new Date(days[i].date)
+    const yesterday = new Date(i > 0 ? days[i - 1].date : null)
+
+    if (i === 0 || (days[i].count > 0 && (today - yesterday === 86400000))) {
+      if (currentStreak === 0) tempStart = days[i].date
+      currentStreak++
+      tempEnd = days[i].date
+    } else if (days[i].count > 0) {
+      currentStreak = 1
+      tempStart = days[i].date
+      tempEnd = days[i].date
+    } else {
+      currentStreak = 0
+    }
+
+    if (currentStreak > maxStreak) {
+      maxStreak = currentStreak
+      longestStart = tempStart
+      longestEnd = tempEnd
+    }
   }
 
   const score = contributions * 0.01 + stars * 0.05 + pullRequests * 0.3 + issues * 0.2 + maxStreak * 0.2
@@ -236,9 +255,9 @@ app.get('/api/v1/summary-svg', async (req, res) => {
   <text x="535" y="100" font-size="22">🔥</text>
   <text x="550" y="120" fill="green" text-anchor="middle" font-size="22" font-weight="bold">${maxStreak}</text>
   <text x="550" y="135" fill="#003366" text-anchor="middle" font-size="15" font-weight="bold">Days streak</text>
-  <text x="550" y="160" fill="black" text-anchor="middle" font-size="15">${start}</text>
+  <text x="550" y="160" fill="black" text-anchor="middle" font-size="15">${longestStart}</text>
   <text x="550" y="170" fill="black" text-anchor="middle" font-size="15" font-weight="bold">...</text>
-  <text x="550" y="190" fill="black" text-anchor="middle" font-size="15">${end}</text>
+  <text x="550" y="190" fill="black" text-anchor="middle" font-size="15">${longestEnd}</text>
 
   <circle cx="550" cy="325" r="60" stroke="${rankColor}" stroke-width="6" fill="none"/>
   <circle cx="550" cy="265" r="20" fill="white"/>
@@ -250,6 +269,7 @@ app.get('/api/v1/summary-svg', async (req, res) => {
   res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8')
   res.send(svg)
 })
+
 
   
 
