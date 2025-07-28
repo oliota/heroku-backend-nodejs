@@ -87,12 +87,13 @@ app.use((req, res, next) => {
   next()
 })
 
+
 app.get('/api/v1/summary-svg', async (req, res) => {
   const username = req.query.user
   if (!username) return res.status(400).send('Missing ?user=username')
 
   const token = process.env.GITHUB_TOKEN
-  if (!token) return res.status(500).send('Missing GitHub token in environment')
+  if (!token) return res.status(500).send('Missing GitHub token')
 
   const body = {
     query: `{
@@ -143,81 +144,22 @@ app.get('/api/v1/summary-svg', async (req, res) => {
   const contributedTo = user.contributionsCollection.totalRepositoriesWithContributedCommits
   const pullRequests = user.pullRequests.totalCount
   const issues = user.issues.totalCount
+  const stars = user.repositories.nodes.reduce((acc, r) => acc + r.stargazerCount, 0)
 
-  let stars = 0
-  const langCount = {}
-  for (const repo of user.repositories.nodes) {
-    stars += repo.stargazerCount
-    const lang = repo.primaryLanguage?.name
-    if (lang) langCount[lang] = (langCount[lang] || 0) + 1
-  }
+  const days = calendar.weeks.flatMap(week => week.contributionDays.map(day => ({
+    date: day.date,
+    count: day.contributionCount
+  })))
 
-  const totalLangs = Object.values(langCount).reduce((a, b) => a + b, 0)
-  const topLangs = Object.entries(langCount).sort((a, b) => b[1] - a[1]).slice(0, 6)
-  const barX = 880, barY = 120, barH = 10, gap = 25
-  const colors = {
-    JavaScript: 'gold', Python: 'skyblue', CSS: 'rebeccapurple',
-    HTML: 'orangered', Java: 'saddlebrown', SCSS: 'hotpink',
-    TypeScript: 'deepskyblue', Shell: 'gray', Go: 'turquoise', Ruby: 'crimson'
-  }
-
-  const langSvg = topLangs.map(([lang, count], i) => {
-    const pct = ((count / totalLangs) * 100).toFixed(1)
-    const width = Math.round((pct / 100) * 100)
-    const y = barY + i * gap
-    const color = colors[lang] || 'black'
-    return `
-      <text x="780" y="${y}" fill="${color}">${lang}</text>
-      <rect x="${barX}" y="${y - barH}" width="0" height="${barH}" fill="${color}">
-        <animate attributeName="width" from="0" to="${width}" dur="1s" fill="freeze" />
-      </rect>
-      <text x="1000" y="${y - 1}" fill="black">${pct}%</text>
-    `
-  }).join('\n')
-
-  const days = []
-  calendar.weeks.forEach(week => {
-    week.contributionDays.forEach(day => {
-      days.push({ date: day.date, count: day.contributionCount })
-    })
+  const { maxStreak, longestStart, longestEnd } = calculateStreakStats(days)
+  const { topLangsSvg } = calculateLanguages(user.repositories.nodes)
+  const { rank, rankColor, score } = calculateScoreAndRank({
+    contributions,
+    stars,
+    pullRequests,
+    issues,
+    maxStreak
   })
-
-  days.sort((a, b) => new Date(a.date) - new Date(b.date))
-
-  let maxStreak = 0, currentStreak = 0
-  let longestStart = '', longestEnd = ''
-  let tempStart = '', tempEnd = ''
-
-  for (let i = 0; i < days.length; i++) {
-    const today = new Date(days[i].date)
-    const yesterday = new Date(i > 0 ? days[i - 1].date : null)
-
-    if (i === 0 || (days[i].count > 0 && (today - yesterday === 86400000))) {
-      if (currentStreak === 0) tempStart = days[i].date
-      currentStreak++
-      tempEnd = days[i].date
-    } else if (days[i].count > 0) {
-      currentStreak = 1
-      tempStart = days[i].date
-      tempEnd = days[i].date
-    } else {
-      currentStreak = 0
-    }
-
-    if (currentStreak > maxStreak) {
-      maxStreak = currentStreak
-      longestStart = tempStart
-      longestEnd = tempEnd
-    }
-  }
-
-  const score = contributions * 0.01 + stars * 0.05 + pullRequests * 0.3 + issues * 0.2 + maxStreak * 0.2
-  const [rank, rankColor] =
-    score > 18 ? ['S', 'gold'] :
-    score > 15 ? ['A+', 'limegreen'] :
-    score > 12 ? ['A', 'green'] :
-    score > 9 ? ['B', 'orange'] :
-    score > 5 ? ['C', 'orangered'] : ['D', 'gray']
 
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="1100" height="580">
@@ -247,7 +189,7 @@ app.get('/api/v1/summary-svg', async (req, res) => {
 
   <g font-weight="bold" font-size="15" fill="#003366">
     <text x="780" y="90">Top Languages</text>
-    ${langSvg}
+    ${topLangsSvg}
   </g>
 
   <circle cx="550" cy="160" r="60" stroke="darkgreen" stroke-width="6" fill="none"/>
@@ -255,9 +197,10 @@ app.get('/api/v1/summary-svg', async (req, res) => {
   <text x="535" y="100" font-size="22">🔥</text>
   <text x="550" y="120" fill="green" text-anchor="middle" font-size="22" font-weight="bold">${maxStreak}</text>
   <text x="550" y="135" fill="#003366" text-anchor="middle" font-size="15" font-weight="bold">Days streak</text>
-  <text x="550" y="160" fill="black" text-anchor="middle" font-size="15">${longestStart}</text>
-  <text x="550" y="170" fill="black" text-anchor="middle" font-size="15" font-weight="bold">...</text>
-  <text x="550" y="190" fill="black" text-anchor="middle" font-size="15">${longestEnd}</text>
+<text x="550" y="160" fill="black" text-anchor="middle" font-size="15">${formatDateBr(longestStart)}</text>
+<text x="550" y="170" fill="black" text-anchor="middle" font-size="15" font-weight="bold">...</text>
+<text x="550" y="190" fill="black" text-anchor="middle" font-size="15">${formatDateBr(longestEnd)}</text>
+
 
   <circle cx="550" cy="325" r="60" stroke="${rankColor}" stroke-width="6" fill="none"/>
   <circle cx="550" cy="265" r="20" fill="white"/>
@@ -270,6 +213,81 @@ app.get('/api/v1/summary-svg', async (req, res) => {
   res.send(svg)
 })
 
+function calculateStreakStats(days) {
+  let maxStreak = 0, currentStreak = 0
+  let longestStart = '', longestEnd = '', tempStart = null
+
+  for (let i = 0; i < days.length; i++) {
+    const date = new Date(days[i].date)
+    const prevDate = i > 0 ? new Date(days[i - 1].date) : null
+    const diff = prevDate ? (date - prevDate) / (1000 * 60 * 60 * 24) : null
+
+    if (days[i].count > 0) {
+      if (currentStreak === 0 || diff !== 1) tempStart = days[i].date
+      currentStreak = (diff === 1 || currentStreak === 0) ? currentStreak + 1 : 1
+    } else {
+      currentStreak = 0
+      continue
+    }
+
+    if (currentStreak > maxStreak) {
+      maxStreak = currentStreak
+      longestStart = tempStart
+      longestEnd = days[i].date
+    }
+  }
+
+  return { maxStreak, longestStart, longestEnd }
+}
+
+function calculateLanguages(repositories) {
+  const colors = {
+    JavaScript: 'gold', Python: 'skyblue', CSS: 'rebeccapurple',
+    HTML: 'orangered', Java: 'saddlebrown', SCSS: 'hotpink',
+    TypeScript: 'deepskyblue', Shell: 'gray', Go: 'turquoise', Ruby: 'crimson'
+  }
+  const counts = {}
+  for (const r of repositories) {
+    const lang = r.primaryLanguage?.name
+    if (lang) counts[lang] = (counts[lang] || 0) + 1
+  }
+  const total = Object.values(counts).reduce((a, b) => a + b, 0)
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6)
+
+  const barX = 880, barY = 120, barH = 10, gap = 25
+  const topLangsSvg = sorted.map(([lang, count], i) => {
+    const pct = ((count / total) * 100).toFixed(1)
+    const width = Math.round((pct / 100) * 100)
+    const y = barY + i * gap
+    const color = colors[lang] || 'black'
+    return `
+      <text x="780" y="${y}" fill="${color}">${lang}</text>
+      <rect x="${barX}" y="${y - barH}" width="0" height="${barH}" fill="${color}">
+        <animate attributeName="width" from="0" to="${width}" dur="1s" fill="freeze" />
+      </rect>
+      <text x="1000" y="${y - 1}" fill="black">${pct}%</text>
+    `
+  }).join('\n')
+
+  return { topLangsSvg }
+}
+
+function calculateScoreAndRank({ contributions, stars, pullRequests, issues, maxStreak }) {
+  const score = contributions * 0.01 + stars * 0.05 + pullRequests * 0.3 + issues * 0.2 + maxStreak * 0.2
+  const [rank, rankColor] =
+    score > 18 ? ['S', 'gold'] :
+    score > 15 ? ['A+', 'limegreen'] :
+    score > 12 ? ['A', 'green'] :
+    score > 9 ? ['B', 'orange'] :
+    score > 5 ? ['C', 'orangered'] : ['D', 'gray']
+
+  return { score, rank, rankColor }
+}
+
+function formatDateBr(isoDate) {
+  const d = new Date(isoDate)
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+}
 
   
 
