@@ -23,12 +23,10 @@ app.post("/api/v1/expenses", (req, res) => {
   const { title, amount } = req.body;
 
   if (typeof title !== "string" || isNaN(amount)) {
-    return res
-      .status(400)
-      .json({
-        error:
-          "Invalid input: title must be a string and amount must be a number",
-      });
+    return res.status(400).json({
+      error:
+        "Invalid input: title must be a string and amount must be a number",
+    });
   }
 
   const parsedAmount = parseFloat(parseFloat(amount).toFixed(2));
@@ -52,12 +50,10 @@ app.put("/api/v1/expenses/:id", (req, res) => {
   const { title, amount } = req.body;
 
   if (typeof title !== "string" || isNaN(amount)) {
-    return res
-      .status(400)
-      .json({
-        error:
-          "Invalid input: title must be a string and amount must be a number",
-      });
+    return res.status(400).json({
+      error:
+        "Invalid input: title must be a string and amount must be a number",
+    });
   }
 
   const index = expenses.findIndex((e) => e.id === req.params.id);
@@ -303,7 +299,15 @@ app.get("/api/v1/summary-svg", async (req, res) => {
   </g>
 </svg>`;
 
+  // res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
   res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+  res.setHeader(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate, proxy-revalidate"
+  );
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  res.setHeader("Surrogate-Control", "no-store");
   res.send(svg);
 });
 
