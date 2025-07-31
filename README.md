@@ -62,7 +62,7 @@ or
 [My example deployed](https://heroku-backend-nodejs-fd16668acdd6.herokuapp.com/api/v1/expenses)
 
 [My example localhost](http://localhost:3002/api/v1/summary-svg?user=oliota)
-[My example deployed](https://heroku-backend-nodejs-fd16668acdd6.herokuapp.com/api/v1/summary-svg?user=oliota)
+[My example deployed]()
 
 
 or

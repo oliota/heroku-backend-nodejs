@@ -245,7 +245,12 @@ app.get("/api/v1/summary-svg", async (req, res) => {
   </style>
 
   <rect x="1" y="1" width="1098" height="458" rx="16" ry="16" fill="white" stroke="#ccc" stroke-width="2"/>
-  <text x="550" y="40" font-size="20" text-anchor="middle" font-weight="bold" fill="#003366">${name} – GitHub Summary</text>
+  <a href="https://oliota.com" target="_blank">
+  <text x="550" y="40" font-size="20" text-anchor="middle" font-weight="bold" fill="#003366">
+    Rubem Oliota – GitHub Activity
+  </text>
+</a>
+
   <line x1="10" y1="60" x2="1090" y2="60" stroke="#ccc" stroke-width="1"/>
 
   <g font-size="15" font-weight="bold" fill="#003366">
