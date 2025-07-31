@@ -248,16 +248,26 @@ app.get("/api/v1/summary-svg", async (req, res) => {
       from { transform: scale(0); opacity: 0; }
       to { transform: scale(1); opacity: 1; }
     }
+
+    .title-hover:hover rect {
+    fill: #d2f1fc;
+    transition: fill 0.4s ease;
+  }
+
+  .footer-hover:hover rect {
+  fill: #d2f1fc;
+  transition: fill 0.4s ease;
+}
+
   </style>
  
   ${getAnimatedBackground()}
 
-<a href="https://${username}.github.io" target="_blank">
-  <text x="550" y="40" font-size="20" text-anchor="middle" font-weight="bold" fill="#003366">
-    ${name} – GitHub Activity
-  </text>
-</a>
 
+${renderTitleInteractive({ name, username, titleHeight: 60 })}
+
+
+ 
   <line x1="10" y1="60" x2="1090" y2="60" stroke="#ccc" stroke-width="1"/>
 
   <g font-size="15" font-weight="bold" fill="#003366">
@@ -295,6 +305,10 @@ ${renderStreakSVG({
  ${renderRankSVG({ rankColor, rankIcon, rank, auraScale })}
 
 
+<!--
+${renderFooterFixed({ footerHeight: 40, width: 1100, version: '1.0.1' })}
+-->
+
 </svg>`;
 
   // res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
@@ -308,6 +322,91 @@ ${renderStreakSVG({
   res.setHeader("Surrogate-Control", "no-store");
   res.send(svg);
 });
+
+
+
+
+function renderTitleInteractive({ name, username, titleHeight = 40 }) {
+  const clipRectHeight = titleHeight;
+  const clipRectCutY = titleHeight - 20;
+  const clipRectCutHeight = 20;
+  const textY = clipRectHeight / 2 + 8;
+
+  return `
+  <defs>
+    <clipPath id="clipTitleTopRounded">
+      <rect x="0" y="0" width="1100" height="${clipRectHeight}" rx="16" ry="16" />
+      <rect x="0" y="${clipRectCutY}" width="1100" height="${clipRectCutHeight}" fill="white" />
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#clipTitleTopRounded)" class="title-hover">
+   <a href="https://${username}.github.io" target="_blank">
+    <rect x="0" y="0" width="1100" height="${clipRectHeight}" fill="transparent">
+      <animate attributeName="fill" values="transparent; #e0f7fa; transparent" dur="4s" repeatCount="indefinite" />
+    </rect>
+   
+      <text x="550" y="${textY}" font-size="20" text-anchor="middle" font-weight="bold" fill="#003366" pointer-events="none">
+        ${name} – GitHub Activity
+      </text>
+    </a>
+  </g>
+  `;
+}
+
+function renderFooterFixed({ footerHeight = 40, width = 1100, version = '1.0.0' }) {
+  const radius = 16;
+  const rectY = 460 - footerHeight;
+  const textY = 460 - footerHeight / 2 + 6;
+  const githubUser = 'Oliota';
+  const footerText = `Created by @${githubUser} v${version}`;
+
+  return `
+  <defs>
+    <clipPath id="clipFooterRoundedBottom">
+      <path d="
+        M0,${rectY}
+        L0,${rectY + footerHeight - radius}
+        Q0,${rectY + footerHeight} ${radius},${rectY + footerHeight}
+        L${width - radius},${rectY + footerHeight}
+        Q${width},${rectY + footerHeight} ${width},${rectY + footerHeight - radius}
+        L${width},${rectY}
+        Z
+      "/>
+    </clipPath>
+  </defs>
+
+  <a href="https://github.com/${githubUser}" target="_blank" rel="noopener noreferrer" >
+    <g clip-path="url(#clipFooterRoundedBottom)" class="title-hover" style="cursor:pointer;">
+      <rect
+        x="0"
+        y="${rectY}"
+        width="${width}"
+        height="${footerHeight}"
+        fill="transparent"
+      >
+        <animate attributeName="fill" values="transparent; #e0f7fa; transparent" dur="4s" repeatCount="indefinite" />
+      </rect>
+      <text
+        x="${width - 10}"
+        y="${textY}"
+        font-size="14"
+        text-anchor="end"
+        fill="#003366"
+        font-family="Segoe UI, Ubuntu, Sans-Serif"
+        pointer-events="none"
+      >
+        ${footerText}
+      </text>
+    </g>
+  </a>
+  `;
+}
+
+
+
+
+
 
  function getAnimatedBackground() {
   return `
@@ -403,7 +502,7 @@ function renderRankSVG({ rankColor, rankIcon, rank, auraScale }) {
 
     ${particles}
 
-    <text x="530" y="100" font-size="32">${rankIcon}</text>
+    <text x="532" y="100" font-size="32">${rankIcon}</text>
     <text x="550" y="140" class="rank-text" text-anchor="middle">${rank}</text>
     <text x="550" y="165" fill="#003366" text-anchor="middle" font-size="15" font-weight="bold">
       Overall Rank
