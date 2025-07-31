@@ -56,22 +56,38 @@ export function calculateLanguages(repositories) {
 }
 
 export function calculateScoreAndRank({ contributions, stars, pullRequests, issues, maxStreak }) {
-  const score = contributions * 0.01 + stars * 0.05 + pullRequests * 0.3 + issues * 0.2 + maxStreak * 0.2
-  const [rank, rankColor, rankBackgroundColor] =
-    score > 18 ? ['S', '#ffd700', '#ffea60'] :
-    score > 15 ? ['A+', '#00b894', '#66e0c1'] :
-    score > 12 ? ['A', '#0984e3', '#5faeff'] :
-    score > 9  ? ['B', '#6c5ce7', '#a99df9'] :
-    score > 5  ? ['C', '#e84393', '#f58dba'] :
-                 ['D', '#636e72', '#aab0b5']
+  const score =
+    contributions * 0.01 +
+    stars * 0.05 +
+    pullRequests * 0.3 +
+    issues * 0.2 +
+    maxStreak * 0.2
+
+  const [rank, rankColor, rankBackgroundColor, rankIcon] =
+    score > 18 ? ['S',  '#ffd700', '#ffea60', '👑'] :
+    score > 15 ? ['A+', '#00b894', '#66e0c1', '🍾'] :
+    score > 12 ? ['A',  '#0984e3', '#5faeff', '💎'] :
+    score > 9  ? ['B',  '#6c5ce7', '#a99df9', '👾'] :
+    score > 5  ? ['C',  '#e84393', '#f58dba', '🧠'] :
+                 ['D',  '#636e72', '#aab0b5', '🎰']
 
   const radius = 60
   const circumference = 2 * Math.PI * radius
   const rankPercent = Math.min(score / 20, 1)
   const rankDashoffset = +(circumference * (1 - rankPercent)).toFixed(2)
+  const auraScale = +(1 + rankPercent * 0.8).toFixed(2)
 
-  return { score, rank, rankColor, rankBackgroundColor, rankDashoffset }
+  return {
+    score,
+    rank,
+    rankColor,
+    rankBackgroundColor,
+    rankDashoffset,
+    rankIcon,
+    auraScale
+  }
 }
+
 
 export function getStreakColor(maxStreak) {
   const dasharray = 360

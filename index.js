@@ -169,18 +169,24 @@ app.get("/api/v1/summary-svg", async (req, res) => {
 
   const { maxStreak, longestStart, longestEnd } = calculateStreakStats(days);
   const { topLangsSvg } = calculateLanguages(user.repositories.nodes);
-  const { rank, rankColor, rankBackgroundColor, rankDashoffset } =
-    calculateScoreAndRank({
-      contributions,
-      stars,
-      pullRequests,
-      issues,
-      maxStreak,
-    });
+  const {
+    rank,
+    rankColor,
+    rankBackgroundColor,
+    rankDashoffset,
+    rankIcon,
+    auraScale,
+  } = calculateScoreAndRank({
+    contributions,
+    stars,
+    pullRequests,
+    issues,
+    maxStreak,
+  });
   const { streakColor, streakBackgroundColor, streakDashoffset } =
     getStreakColor(maxStreak);
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="580">
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="460">
   <style>
     .rank-text {
       font: 800 24px 'Segoe UI', Ubuntu, Sans-Serif;
@@ -278,30 +284,16 @@ app.get("/api/v1/summary-svg", async (req, res) => {
     ${topLangsSvg}
   </g>
 
-  <g transform="translate(0, 0)">
-    <circle class="streak-circle-rim" cx="550" cy="160" r="60"/>
-    <circle class="streak-circle" cx="680" cy="290" r="60" stroke="${streakColor}"/>
-    <circle cx="550" cy="95" r="20" fill="white"/>
-    <text x="535" y="100" font-size="22">🔥</text>
-    <text x="550" y="120" class="rank-text" text-anchor="middle">${maxStreak}</text>
-    <text x="550" y="135" fill="#003366" text-anchor="middle" font-size="15" font-weight="bold">Days streak</text>
-    <text x="550" y="160" fill="black" text-anchor="middle" font-size="15">${formatDateBr(
-      longestStart
-    )}</text>
-    <text x="550" y="170" fill="black" text-anchor="middle" font-size="15" font-weight="bold">...</text>
-    <text x="550" y="190" fill="black" text-anchor="middle" font-size="15">${formatDateBr(
-      longestEnd
-    )}</text>
-  </g>
+${renderStreakSVG({
+  streakColor: streakColor,
+  maxStreak: maxStreak,
+  longestStart: longestStart,
+  longestEnd: longestEnd
+})}
 
-  <g transform="translate(0, 165)">
-    <circle class="rank-circle-rim" cx="550" cy="160" r="60"  />
-    <circle class="rank-circle" cx="680" cy="290" r="60" stroke="${rankColor}"/>
-    <circle cx="550" cy="95" r="20" fill="white"/>
-    <text x="535" y="100" font-size="22">🔝</text>
-    <text x="550" y="140" class="rank-text" text-anchor="middle">${rank}</text>
-    <text x="550" y="165" fill="#003366" text-anchor="middle" font-size="15" font-weight="bold">Overall Rank</text>
-  </g>
+ ${renderRankSVG({ rankColor, rankIcon, rank, auraScale })}
+
+
 </svg>`;
 
   // res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
@@ -315,6 +307,99 @@ app.get("/api/v1/summary-svg", async (req, res) => {
   res.setHeader("Surrogate-Control", "no-store");
   res.send(svg);
 });
+
+ 
+
+function renderStreakSVG({ streakColor, maxStreak, longestStart, longestEnd }) {
+  return `
+  <g transform="translate(0, 0)">
+    <circle class="streak-circle-rim" cx="550" cy="160" r="60"/>
+    <circle class="streak-circle" cx="620" cy="230" r="60" stroke="${streakColor}"/>
+    <circle cx="550" cy="95" r="20" fill="white"/>
+
+    <!-- Fogo principal com faíscas-emoji -->
+    <g transform="translate(545,85)">
+      <!-- 🔥 faíscas subindo -->
+      <g font-size="8" opacity="1">
+        <text x="0" y="0">🔥</text>
+        <animateTransform attributeName="transform" type="translate"
+                          values="0,0; -4,-20" dur="1.5s" begin="0s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="1;0" dur="1.5s" begin="0s" repeatCount="indefinite"/>
+      </g>
+      <g font-size="8" opacity="1">
+        <text x="0" y="0">🔥</text>
+        <animateTransform attributeName="transform" type="translate"
+                          values="0,0; 4,-22" dur="1.4s" begin="0.3s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="1;0" dur="1.4s" begin="0.3s" repeatCount="indefinite"/>
+      </g>
+      <g font-size="8" opacity="1">
+        <text x="0" y="0">🔥</text>
+        <animateTransform attributeName="transform" type="translate"
+                          values="0,0; -2,-24" dur="1.3s" begin="0.5s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="1;0" dur="1.3s" begin="0.5s" repeatCount="indefinite"/>
+      </g>
+
+      <!-- 🔥 fogo principal -->
+      <g>
+        <text x="-10" y="8" font-size="24">
+          <tspan>🔥</tspan>
+          <animateTransform attributeName="transform"
+                            type="rotate"
+                            values="-5 0 0; 5 0 0; -5 0 0"
+                            dur="1.2s"
+                            repeatCount="indefinite" />
+        </text>
+      </g>
+    </g>
+
+    <text x="550" y="120" class="rank-text" text-anchor="middle">${maxStreak}</text>
+    <text x="550" y="135" fill="#003366" text-anchor="middle" font-size="15" font-weight="bold">Days streak</text>
+    <text x="550" y="160" fill="black" text-anchor="middle" font-size="15">${formatDateBr(longestStart)}</text>
+    <text x="550" y="170" fill="black" text-anchor="middle" font-size="15" font-weight="bold">...</text>
+    <text x="550" y="190" fill="black" text-anchor="middle" font-size="15">${formatDateBr(longestEnd)}</text>
+  </g>
+  `
+}
+
+function renderRankSVG({ rankColor, rankIcon, rank, auraScale }) {
+  const particles = Array.from({ length: Math.round(auraScale * 4) }, (_, i) => {
+    const xOffset = (i % 2 === 0 ? -1 : 1) * (Math.random() * 6 + 2).toFixed(1)
+    const delay = (i * 0.3).toFixed(1)
+    const duration = (1.2 + Math.random()).toFixed(2)
+    const height = (Math.random() * 35 + 15).toFixed(1)
+    return `
+    <g font-size="7" opacity="1">
+      <text x="545" y="95">${rankIcon}</text>
+      <animateTransform attributeName="transform" type="translate"
+                        values="0,0; ${xOffset},-${height}"
+                        dur="${duration}s"
+                        begin="${delay}s"
+                        repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="1;0"
+               dur="${duration}s"
+               begin="${delay}s"
+               repeatCount="indefinite"/>
+    </g>`
+  }).join('')
+
+  return `
+  <g transform="translate(0, 165)">
+    <circle class="rank-circle-rim" cx="550" cy="160" r="60" />
+    <circle class="rank-circle" cx="620" cy="230" r="60" stroke="${rankColor}" />
+    <circle cx="550" cy="95" r="20" fill="white"/>
+
+    ${particles}
+
+    <text x="530" y="100" font-size="32">${rankIcon}</text>
+    <text x="550" y="140" class="rank-text" text-anchor="middle">${rank}</text>
+    <text x="550" y="165" fill="#003366" text-anchor="middle" font-size="15" font-weight="bold">
+      Overall Rank
+    </text>
+  </g>
+  `
+}
+
+
 
 app.listen(process.env.PORT || 3002, () => {
   console.log("Server is running on port", process.env.PORT || 3002);
