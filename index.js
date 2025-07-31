@@ -201,9 +201,9 @@ app.get("/api/v1/summary-svg", async (req, res) => {
       stroke-width: 8;
       stroke-linecap: round;
       opacity: 0.8;
-      transform: rotate(-90deg);
+      transform: rotate(-80deg);
       transform-origin: center;
-      animation: streakAnimation 1s forwards ease-in-out;
+      animation: streakAnimation 10s ease-in-out infinite;
     }
       
     .streak-circle-rim {
@@ -214,10 +214,10 @@ app.get("/api/v1/summary-svg", async (req, res) => {
     } 
     
     @keyframes streakAnimation {
-      from { stroke-dashoffset: 360; }
-      to { stroke-dashoffset:  ${streakDashoffset}; }
-    }
-      
+  0% { stroke-dashoffset: 360; }
+  50% { stroke-dashoffset: ${streakDashoffset}; }
+  100% { stroke-dashoffset: 360; }
+}
 
 
 
@@ -227,9 +227,9 @@ app.get("/api/v1/summary-svg", async (req, res) => {
       stroke-width: 8;
       stroke-linecap: round;
       opacity: 0.8;
-      transform: rotate(-90deg);
+      transform: rotate(-80deg);
       transform-origin: center;
-      animation: rankAnimation 1s forwards ease-in-out;
+      animation: rankAnimation 10s ease-in-out infinite;
     }
       .rank-circle-rim {
       stroke: ${rankBackgroundColor};
@@ -239,9 +239,10 @@ app.get("/api/v1/summary-svg", async (req, res) => {
     }
 
     @keyframes rankAnimation {
-      from { stroke-dashoffset: 360; }
-      to { stroke-dashoffset:  ${rankDashoffset}; }
-    }
+  0% { stroke-dashoffset: 360; }
+  50% { stroke-dashoffset: ${rankDashoffset}; }
+  100% { stroke-dashoffset: 360; }
+}
 
 
     @keyframes scaleInAnimation {
@@ -426,25 +427,25 @@ function renderStreakSVG({ streakColor, maxStreak, longestStart, longestEnd }) {
   return `
   <g transform="translate(0, 0)">
     <circle class="streak-circle-rim" cx="550" cy="160" r="60"/>
-    <circle class="streak-circle" cx="620" cy="230" r="60" stroke="${streakColor}"/>
+    <circle class="streak-circle" cx="618" cy="218" r="60" stroke="${streakColor}"/>
     <circle cx="550" cy="95" r="20" fill="white"/>
 
     <!-- Fogo principal com faíscas-emoji -->
     <g transform="translate(545,85)">
       <!-- 🔥 faíscas subindo -->
-      <g font-size="8" opacity="1">
+      <g font-size="10" opacity="1">
         <text x="0" y="0">🔥</text>
         <animateTransform attributeName="transform" type="translate"
                           values="0,0; -4,-20" dur="1.5s" begin="0s" repeatCount="indefinite"/>
         <animate attributeName="opacity" values="1;0" dur="1.5s" begin="0s" repeatCount="indefinite"/>
       </g>
-      <g font-size="8" opacity="1">
+      <g font-size="10" opacity="1">
         <text x="0" y="0">🔥</text>
         <animateTransform attributeName="transform" type="translate"
                           values="0,0; 4,-22" dur="1.4s" begin="0.3s" repeatCount="indefinite"/>
         <animate attributeName="opacity" values="1;0" dur="1.4s" begin="0.3s" repeatCount="indefinite"/>
       </g>
-      <g font-size="8" opacity="1">
+      <g font-size="10" opacity="1">
         <text x="0" y="0">🔥</text>
         <animateTransform attributeName="transform" type="translate"
                           values="0,0; -2,-24" dur="1.3s" begin="0.5s" repeatCount="indefinite"/>
@@ -480,7 +481,7 @@ function renderRankSVG({ rankColor, rankIcon, rank, auraScale }) {
     const duration = (1.2 + Math.random()).toFixed(2)
     const height = (Math.random() * 35 + 15).toFixed(1)
     return `
-    <g font-size="7" opacity="1">
+    <g font-size="10" opacity="1">
       <text x="545" y="95">${rankIcon}</text>
       <animateTransform attributeName="transform" type="translate"
                         values="0,0; ${xOffset},-${height}"
@@ -497,12 +498,12 @@ function renderRankSVG({ rankColor, rankIcon, rank, auraScale }) {
   return `
   <g transform="translate(0, 165)">
     <circle class="rank-circle-rim" cx="550" cy="160" r="60" />
-    <circle class="rank-circle" cx="620" cy="230" r="60" stroke="${rankColor}" />
+    <circle class="rank-circle" cx="618" cy="218" r="60" stroke="${rankColor}" />
     <circle cx="550" cy="95" r="20" fill="white"/>
 
     ${particles}
 
-    <text x="532" y="100" font-size="32">${rankIcon}</text>
+    <text x="530" y="100" font-size="32">${rankIcon}</text>
     <text x="550" y="140" class="rank-text" text-anchor="middle">${rank}</text>
     <text x="550" y="165" fill="#003366" text-anchor="middle" font-size="15" font-weight="bold">
       Overall Rank
