@@ -249,8 +249,9 @@ app.get("/api/v1/summary-svg", async (req, res) => {
       to { transform: scale(1); opacity: 1; }
     }
   </style>
+ 
+  ${getAnimatedBackground()}
 
-  <rect x="1" y="1" width="1098" height="458" rx="16" ry="16" fill="white" stroke="#ccc" stroke-width="2"/>
 <a href="https://${username}.github.io" target="_blank">
   <text x="550" y="40" font-size="20" text-anchor="middle" font-weight="bold" fill="#003366">
     ${name} – GitHub Activity
@@ -308,7 +309,19 @@ ${renderStreakSVG({
   res.send(svg);
 });
 
- 
+ function getAnimatedBackground() {
+  return `
+<defs>
+  <pattern id="diagonalStripes" patternUnits="userSpaceOnUse" width="40" height="40" patternTransform="rotate(45)">
+    <rect width="20" height="40" fill="#f9f9f9"/>
+    <rect x="20" width="20" height="40" fill="#ffffff"/>
+    <animateTransform attributeName="patternTransform" type="translate" from="0,0" to="-40,0" dur="3s" repeatCount="indefinite"/>
+  </pattern>
+</defs>
+<rect x="1" y="1" width="1098" height="458" rx="16" ry="16" fill="url(#diagonalStripes)" stroke="#ccc" stroke-width="2"/>
+`
+}
+
 
 function renderStreakSVG({ streakColor, maxStreak, longestStart, longestEnd }) {
   return `
