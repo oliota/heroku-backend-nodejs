@@ -1,0 +1,21 @@
+import { Router } from "express";
+import * as controller from "../controllers/scheduleController.js";
+
+const router = Router();
+router.get("/schedule", controller.getSchedule);
+router.get("/schedule/codes", controller.listCodes);
+router.post("/schedule/codes", controller.createCode);
+router.put("/schedule/codes/:code", controller.updateCode);
+router.delete("/schedule/codes/:code", controller.deleteCode);
+router.get("/schedule/months", controller.listMonths);
+router.get("/schedule/months/:month", controller.getMonth);
+router.put("/schedule/months/:month", controller.upsertMonth);
+router.delete("/schedule/months/:month", controller.deleteMonth);
+router.put("/schedule/months/:month/changes/:day", controller.setManualChange);
+router.delete("/schedule/months/:month/changes/:day", controller.deleteManualChange);
+router.get("/schedule/import/prompt", controller.getImportPrompt);
+router.post("/schedule/import", controller.importMonth);
+router.get("/schedule/ui", controller.getUi);
+router.put("/schedule/ui", controller.setUi);
+router.post("/schedule/bootstrap", controller.bootstrap);
+export default router;

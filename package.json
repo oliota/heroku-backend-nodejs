@@ -8,13 +8,24 @@
     "dev": "nodemon index.js",
     "heroku:init": "heroku login && heroku create heroku-backend-nodejs --stack heroku-22",
     "heroku:push": "git push heroku master:main",
-    "heroku:open": "heroku open"
+    "heroku:open": "heroku open",
+    "----": "echo ---------- INSTALL ----------",
+    "install:deps": "npm install",
+    "-----": "echo ---------- RUN ----------",
+    "run": "node index.js",
+    "------": "echo ---------- QUALITY ----------",
+    "test": "node --check index.js && node --check controllers/scheduleController.js && node --check routes/scheduleRoutes.js",
+    "status": "npm ls --depth=0",
+    "list": "npm run",
+    "help": "npm run list",
+    "logs": "heroku logs --tail"
   },
   "dependencies": {
     "dotenv": "^17.2.1",
     "express": "^4.18.2",
     "node-fetch": "^3.3.2",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "firebase": "^8.10.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

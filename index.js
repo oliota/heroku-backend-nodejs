@@ -2,6 +2,7 @@ import express from "express";
 import { v4 as uuid } from "uuid";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
+import scheduleRoutes from "./routes/scheduleRoutes.js";
 dotenv.config();
 
 const app = express();
@@ -13,7 +14,8 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json());
+app.use(express.json({ limit: "2mb" }));
+app.use("/api/v1", scheduleRoutes);
 
 let expenses = [];
 
