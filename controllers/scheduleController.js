@@ -173,3 +173,76 @@ export async function bootstrap(req, res, next) {
     res.status(201).json({ codes: Object.keys(seed.codes || {}).length, months: Object.keys(seed.months || {}).length });
   } catch (error) { next(error); }
 }
+
+const SCHEDULE_TIME_ZONE = "Europe/Lisbon";
+const formatDate = date => new Intl.DateTimeFormat("en-CA", { timeZone: SCHEDULE_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+const asDate = value => { const [y, m, d] = formatDate(value).split("-").map(Number); return new Date(Date.UTC(y, m - 1, d, 12)); };
+const plusDays = (date, days) => new Date(date.getTime() + days * 86400000);
+const dayOfWeek = date => date.getUTCDay();
+const cleanTime = value => String(value || "").replace(".", ":");
+const toMinutes = value => { const match = cleanTime(value).match(/^(\d{1,2}):(\d{2})$/); return match ? Number(match[1]) * 60 + Number(match[2]) : null; };
+const breakInfo = data => { const inicio = cleanTime(data?.breakStart); const fim = cleanTime(data?.breakEnd); const start = toMinutes(inicio); const end = toMinutes(fim); return { inicio, fim, duracaoMinutos: start === null || end === null ? 0 : Math.max(0, end - start) }; };
+const scheduleInfo = (code, data = {}) => ({ codigo: code || "", tipo: data.label || code || "", entrada: cleanTime(data.start), saida: cleanTime(data.end), intervalo: breakInfo(data) });
+
+function codeForEmployee(month, employee, day) {
+  const original = month?.employees?.[employee]?.days?.[String(day)] || "";
+  const change = month?.manualChanges?.[String(day)];
+  if (!change) return original;
+  if (change.type === "adjustment" && employee === PRIMARY_EMPLOYEE) return normalizeCode(change.code);
+  if (change.type === "swap" && change.with) {
+    if (employee === PRIMARY_EMPLOYEE) return month.employees?.[change.with]?.days?.[String(day)] || original;
+    if (employee === change.with) return month.employees?.[PRIMARY_EMPLOYEE]?.days?.[String(day)] || original;
+  }
+  return original;
+}
+
+function datesFor(when) {
+  const today = asDate(new Date());
+  if (when === "today") return [today];
+  if (when === "tomorrow") return [plusDays(today, 1)];
+  if (when !== "weekend") return null;
+  const weekday = dayOfWeek(today);
+  const saturday = plusDays(today, weekday === 6 ? 0 : weekday === 0 ? -1 : 6 - weekday);
+  return [saturday, plusDays(saturday, 1)];
+}
+
+function shortStatus(shift) {
+  if (!shift?.codigo) return "sem escala";
+  const type = String(shift.tipo || shift.codigo).toLocaleLowerCase("pt-PT");
+  if (type === "folga") return "de folga";
+  if (type === "férias" || type === "ferias") return "de férias";
+  if (type === "abertura") return "na abertura";
+  if (type === "intermedio" || type === "intermédio") return "no intermédio";
+  if (type === "fecho") return "no fecho";
+  return `no ${type}`;
+}
+
+function summaryFor(when, days) {
+  if (when === "today") return `Hoje estou ${shortStatus(days[0]?.eliane)}`;
+  if (when === "tomorrow") return `Amanhã estou ${shortStatus(days[0]?.eliane)}`;
+  return `Neste final de semana estou sábado ${shortStatus(days[0]?.eliane)} e domingo ${shortStatus(days[1]?.eliane)}`;
+}
+
+export async function getDaySchedule(req, res, next) {
+  try {
+    const when = String(req.query.when || "").toLowerCase();
+    const dates = datesFor(when);
+    if (!dates) return res.status(400).json({ error: "when must be today, tomorrow or weekend" });
+    const monthKeys = [...new Set(dates.map(date => formatDate(date).slice(0, 7)))];
+    const [codeSnapshot, ...monthSnapshots] = await Promise.all([codes.get(), ...monthKeys.map(key => months.doc(key).get())]);
+    const codeMap = Object.fromEntries(codeSnapshot.docs.map(doc => [doc.id, doc.data()]));
+    const monthMap = Object.fromEntries(monthSnapshots.filter(doc => doc.exists).map(doc => [doc.id, doc.data()]));
+    const dias = dates.map(date => {
+      const data = formatDate(date);
+      const month = monthMap[data.slice(0, 7)];
+      const day = Number(data.slice(8, 10));
+      const pessoas = Object.keys(month?.employees || {}).map(nome => {
+        const codigo = codeForEmployee(month, nome, day);
+        return { nome, ...scheduleInfo(codigo, codeMap[codigo]) };
+      });
+      const eliane = pessoas.find(person => person.nome === PRIMARY_EMPLOYEE) || { nome: PRIMARY_EMPLOYEE, ...scheduleInfo() };
+      return { data, eliane, pessoas };
+    });
+    res.json({ resumoDoDia: summaryFor(when, dias), periodo: when, dias });
+  } catch (error) { next(error); }
+}

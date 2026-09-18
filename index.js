@@ -517,5 +517,6 @@ function renderRankSVG({ rankColor, rankIcon, rank, auraScale }) {
 
 
 app.listen(process.env.PORT || 3002, () => {
-  console.log("Server is running on port", process.env.PORT || 3002);
+  const port = process.env.PORT || 3002;
+  console.log(`Server is running on http://localhost:${port}`);
 });

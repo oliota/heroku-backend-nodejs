@@ -3,6 +3,7 @@ import * as controller from "../controllers/scheduleController.js";
 
 const router = Router();
 router.get("/schedule", controller.getSchedule);
+router.get("/schedule/day", controller.getDaySchedule);
 router.get("/schedule/codes", controller.listCodes);
 router.post("/schedule/codes", controller.createCode);
 router.put("/schedule/codes/:code", controller.updateCode);
