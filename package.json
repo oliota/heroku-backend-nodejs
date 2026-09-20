@@ -21,6 +21,7 @@
     "logs": "heroku logs --tail"
   },
   "dependencies": {
+    "date-fns": "^4.1.0",
     "dotenv": "^17.2.1",
     "express": "^4.18.2",
     "node-fetch": "^3.3.2",

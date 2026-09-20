@@ -515,6 +515,9 @@ function renderRankSVG({ rankColor, rankIcon, rank, auraScale }) {
 }
 
 
+// import { snakeSummaryController } from "./controllers/snakeSummaryController.js";
+
+// app.get("/api/v1/summary-snake", snakeSummaryController);
 
 app.listen(process.env.PORT || 3002, () => {
   const port = process.env.PORT || 3002;
