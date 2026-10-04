@@ -9,6 +9,8 @@ router.post("/schedule/codes", controller.createCode);
 router.put("/schedule/codes/:code", controller.updateCode);
 router.delete("/schedule/codes/:code", controller.deleteCode);
 router.get("/schedule/months", controller.listMonths);
+router.get("/schedule/versions", controller.listMonthVersions);
+router.post("/schedule/migrations/versioning", controller.migrateMonthVersions);
 router.get("/schedule/months/:month", controller.getMonth);
 router.put("/schedule/months/:month", controller.upsertMonth);
 router.delete("/schedule/months/:month", controller.deleteMonth);

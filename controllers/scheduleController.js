@@ -5,6 +5,11 @@ const PRIMARY_EMPLOYEE = "Eliane Oliota";
 const DEFAULT_COLOR = "#9aa0a6";
 const codes = db.collection("pingo_schedule_codes");
 const months = db.collection("pingo_schedule_months");
+const monthVersions = db.collection("pingo_schedule_month_versions");
+const today = () => new Date().toISOString().slice(0, 10);
+const versionMeta = (version = 1, updatedAt = today()) => ({ version, updatedAt });
+async function currentVersion(month) { const doc = await monthVersions.doc(month).get(); return doc.exists ? Number(doc.data().version || 0) : 0; }
+async function bumpVersion(month) { const version = Math.max(1, (await currentVersion(month)) + 1); const meta = versionMeta(version); await monthVersions.doc(month).set({ month, ...meta }); return meta; }
 const settings = db.collection("pingo_schedule_settings").doc("default");
 const normalizeCode = value => String(value ?? "").toUpperCase().trim().replace(/[^A-Z0-9]/g, "");
 const monthPattern = /^20\d{2}-(0[1-9]|1[0-2])$/;
@@ -52,6 +57,38 @@ export async function getSchedule(_req, res, next) {
     const codeMap = Object.fromEntries(codeSnap.docs.map(doc => [doc.id, doc.data()]));
     const monthMap = Object.fromEntries(monthSnap.docs.map(doc => [doc.id, doc.data()]));
     res.json({ employee: PRIMARY_EMPLOYEE, codes: codeMap, months: monthMap, ui: settingSnap.exists ? settingSnap.data().ui ?? {} : {} });
+  } catch (error) { next(error); }
+}
+
+export async function listMonthVersions(req, res, next) {
+  try {
+    const month = String(req.query.month || "").trim();
+    if (month) {
+      if (!monthPattern.test(month)) return res.status(400).json({ error: "invalid month", expected: "YYYY-MM" });
+      const doc = await monthVersions.doc(month).get();
+      if (!doc.exists) return res.json({ month, exists: false, version: null, updatedAt: null });
+      const data = doc.data();
+      return res.json({ month, exists: true, version: Number(data.version || 1), updatedAt: data.updatedAt || null });
+    }
+    const snap = await monthVersions.orderBy("month").get();
+    res.json(snap.docs.map(doc => ({ month: doc.id, exists: true, version: Number(doc.data().version || 1), updatedAt: doc.data().updatedAt || null })));
+  } catch (error) { next(error); }
+}
+
+export async function migrateMonthVersions(_req, res, next) {
+  try {
+    const snap = await months.get();
+    const migrated = [], existing = [];
+    for (const doc of snap.docs) {
+      const versionRef = monthVersions.doc(doc.id);
+      const versionDoc = await versionRef.get();
+      if (versionDoc.exists) { existing.push({ month: doc.id, ...versionDoc.data() }); continue; }
+      const meta = versionMeta(1);
+      await versionRef.set({ month: doc.id, ...meta });
+      await doc.ref.set(meta, { merge: true });
+      migrated.push({ month: doc.id, ...meta });
+    }
+    res.json({ success: true, message: migrated.length ? `${migrated.length} escala(s) antiga(s) preparada(s) para cache local.` : "Todas as escalas já usam versionamento.", migrationDate: today(), found: snap.size, migratedCount: migrated.length, migrated, alreadyVersioned: existing });
   } catch (error) { next(error); }
 }
 
@@ -105,13 +142,14 @@ export async function upsertMonth(req, res, next) {
     const payload = validateImport({ month: req.params.month, employees: req.body.employees ?? req.body });
     await ensureCodes(payload.employees);
     const data = { month: payload.month, source: req.body.source || "api", employees: payload.employees, manualChanges: req.body.manualChanges || {} };
-    await months.doc(payload.month).set(data);
-    res.json(data);
+    const meta = await bumpVersion(payload.month);
+    await months.doc(payload.month).set({ ...data, ...meta });
+    res.json({ ...data, ...meta });
   } catch (error) { res.status(400).json({ error: error.message }); }
 }
 
 export async function deleteMonth(req, res, next) {
-  try { await months.doc(req.params.month).delete(); res.sendStatus(204); } catch (error) { next(error); }
+  try { await Promise.all([months.doc(req.params.month).delete(), monthVersions.doc(req.params.month).delete()]); res.sendStatus(204); } catch (error) { next(error); }
 }
 
 export async function setManualChange(req, res, next) {
@@ -129,14 +167,19 @@ export async function setManualChange(req, res, next) {
       await ensureCodes({ temp: { days: { [day]: change.code } } });
     }
     await ref.update({ [`manualChanges.${day}`]: change });
-    res.json(change);
+    const meta = await bumpVersion(req.params.month);
+    await ref.set(meta, { merge: true });
+    res.json({ ...change, scheduleVersion: meta });
   } catch (error) { next(error); }
 }
 
 export async function deleteManualChange(req, res, next) {
   try {
-    await months.doc(req.params.month).update({ [`manualChanges.${req.params.day}`]: FieldValue.delete() });
-    res.sendStatus(204);
+    const ref = months.doc(req.params.month);
+    await ref.update({ [`manualChanges.${req.params.day}`]: FieldValue.delete() });
+    const meta = await bumpVersion(req.params.month);
+    await ref.set(meta, { merge: true });
+    res.json({ success: true, scheduleVersion: meta });
   } catch (error) { next(error); }
 }
 
@@ -147,8 +190,9 @@ export async function importMonth(req, res) {
     const parsed = validateImport(payload);
     await ensureCodes(parsed.employees);
     const data = { month: parsed.month, source: "text-import", employees: parsed.employees, manualChanges: {} };
-    await months.doc(parsed.month).set(data);
-    res.status(201).json(data);
+    const meta = await bumpVersion(parsed.month);
+    await months.doc(parsed.month).set({ ...data, ...meta });
+    res.status(201).json({ ...data, ...meta });
   } catch (error) { res.status(400).json({ error: error.message }); }
 }
 
