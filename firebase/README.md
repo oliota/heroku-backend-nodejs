@@ -1,0 +1,11 @@
+# Adedonha Firestore migration candidate
+
+These files target **adedonha-stop**, never the existing oliota Firebase project. Nothing has been deployed. The Godot rules and indexes were inspected; the original files were not changed. Existing native `auth_links`, feedback and friend invites are preserved here.
+
+The inspected native app currently performs client writes to rooms, answers, votes, profiles and friendships and permits sandbox licenses. This API is server authoritative. **All clients must migrate mutations to the API before applying these rules.** Existing client-authoritative rooms are rejected with `ROOM_MIGRATION_REQUIRED`; finish those rooms on the old client, then create new rooms through the API. Do not add a second permissive match: Firestore combines allow clauses with OR, which would bypass backend authorization.
+
+Rules prevent room listing, restrict initial room reads to members, hide drafts from opponents, and deny client writes to financial and gameplay state. After joining through REST, listen to `rooms/{code}`. Private profiles, friendships, history and entitlements are readable only by their owner. `adedonha_private_licenses` contains store proofs and must remain backend-only. Server credentials bypass rules, so backend validation is mandatory.
+
+No composite indexes are needed: lists query the authenticated user's subcollections ordered by document ID. The supplied index exemptions avoid indexing bulky answer/review maps and operation responses. Merge exemptions with any live indexes before deployment. Do not enable TTL on idempotency, purchase bindings or reward event records without defining replay retention; room codes are never recycled by this API. Operational archival can remove old operations only after their replay window is explicitly retired by protocol version.
+
+Before release: run Firestore Emulator security-rule tests (including stranger reads, forged votes/premium/tickets, native auth exchange) and real Firebase multi-client transaction/listener tests in a staging project. This workspace currently has no live credentials or emulator configuration; those checks have not been claimed as executed. Review and deploy rules manually to `adedonha-stop` together with native client migration. There is deliberately no automatic deployment command or default Firebase project alias.

@@ -1,9 +1,11 @@
 import express from "express";
-import { v4 as uuid } from "uuid";
+import { randomUUID as uuid } from 'node:crypto';
 import fetch from "node-fetch";
 import dotenv from "dotenv";
 import scheduleRoutes from "./routes/scheduleRoutes.js";
-dotenv.config();
+import { pathToFileURL } from 'node:url';
+import { createAdedonhaRouter } from './adedonha/routes.js';
+dotenv.config({ quiet: true });
 
 const app = express();
 
@@ -14,14 +16,13 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use('/api/v1/adedonha', createAdedonhaRouter());
 app.use(express.json({ limit: "2mb" }));
 app.use("/api/v1", scheduleRoutes);
 
 let expenses = [];
 
 app.post("/api/v1/expenses", (req, res) => {
-  console.log("BODY RECEIVED:", req.body);
-
   const { title, amount } = req.body;
 
   if (typeof title !== "string" || isNaN(amount)) {
@@ -519,7 +520,9 @@ function renderRankSVG({ rankColor, rankIcon, rank, auraScale }) {
 
 // app.get("/api/v1/summary-snake", snakeSummaryController);
 
-app.listen(process.env.PORT || 3002, () => {
+export { app };
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) app.listen(process.env.PORT || 3002, () => {
   const port = process.env.PORT || 3002;
   console.log(`Server is running on http://localhost:${port}`);
 });

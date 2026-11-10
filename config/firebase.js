@@ -1,8 +1,9 @@
 import { createRequire } from "module";
+import 'dotenv/config';
 
 const require = createRequire(import.meta.url);
-const firebase = require("firebase/app");
-require("firebase/firestore");
+const firebase = require("firebase/compat/app");
+require("firebase/compat/firestore");
 
 const config = {
   apiKey: process.env.FIREBASE_API_KEY || "AIzaSyD-V_aZxvLXXdpudiqbiWJ0L5hZLYQBhv0",

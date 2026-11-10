@@ -1,0 +1,477 @@
+{
+	"normalize": [
+		{
+			"expected": "abacaxi",
+			"input": "  Ábacaxi  "
+		},
+		{
+			"expected": "sao paulo",
+			"input": "São   Paulo"
+		},
+		{
+			"expected": "guarda chuva",
+			"input": "Guarda-Chuva!"
+		},
+		{
+			"expected": "cebola",
+			"input": "Çebola"
+		},
+		{
+			"expected": "елка",
+			"input": "Ёлка"
+		},
+		{
+			"expected": "αλογο",
+			"input": "Άλογο"
+		},
+		{
+			"expected": "苹果",
+			"input": "苹果"
+		},
+		{
+			"expected": "r2 d2",
+			"input": "R2-D2"
+		}
+	],
+	"protocol": {
+		"all_approved": false,
+		"answer_docs": [
+			{
+				"data": {
+					"answers": [
+						"Cinza",
+						"Corsa",
+						"Caqui"
+					],
+					"final": true,
+					"round_id": "r1-abcdef"
+				},
+				"id": "u1"
+			},
+			{
+				"data": {
+					"answers": [
+						"cinza",
+						"Camaro",
+						""
+					],
+					"final": false,
+					"round_id": "r1-abcdef"
+				},
+				"id": "u2"
+			},
+			{
+				"data": {
+					"answers": [
+						"Ciano",
+						"Celta",
+						"Coco"
+					],
+					"final": true,
+					"round_id": "r0-stale"
+				},
+				"id": "u3"
+			}
+		],
+		"begin_review_update": {
+			"answers": {
+				"u1": [
+					"Cinza",
+					"Corsa",
+					"Caqui"
+				],
+				"u2": [
+					"cinza",
+					"Camaro",
+					""
+				],
+				"u3": [
+					"",
+					"",
+					""
+				]
+			},
+			"review": {
+				"approved": {},
+				"epochs": {},
+				"forced": false
+			},
+			"status": "review",
+			"suggested": {
+				"u1": [
+					5,
+					10,
+					10
+				],
+				"u2": [
+					5,
+					10,
+					0
+				],
+				"u3": [
+					0,
+					0,
+					0
+				]
+			},
+			"version": 4
+		},
+		"done_players": [
+			"u1",
+			"u2"
+		],
+		"finish_forced": {
+			"ok": true,
+			"update": {
+				"players": {
+					"u1": {
+						"color": "#FF6B6B",
+						"name": "Ana",
+						"score": 25
+					},
+					"u2": {
+						"color": "#2EC4B6",
+						"name": "Bia",
+						"score": 15
+					},
+					"u3": {
+						"color": "#6C5CE7",
+						"name": "Caio",
+						"score": 0
+					}
+				},
+				"results": {
+					"u1": [
+						5,
+						10,
+						10
+					],
+					"u2": [
+						5,
+						10,
+						0
+					],
+					"u3": [
+						0,
+						0,
+						0
+					]
+				},
+				"review": {
+					"approved": {},
+					"epochs": {},
+					"forced": true
+				},
+				"status": "results",
+				"version": 5
+			}
+		},
+		"finish_normal": {
+			"error": "REVIEW_PENDING",
+			"ok": false
+		},
+		"reopen_u1_0": {
+			"review": {
+				"approved": {
+					"u1:1": 10,
+					"u1:2": 10,
+					"u2:0": 5
+				},
+				"epochs": {
+					"u1:0": 1
+				},
+				"forced": false
+			},
+			"version": 6
+		},
+		"room_playing": {
+			"answers": {},
+			"categories": [
+				"COR",
+				"CARRO",
+				"FRUTA"
+			],
+			"host": "u1",
+			"lang": "pt",
+			"letter": "C",
+			"letters": "ABC",
+			"owner": "u1",
+			"players": {
+				"u1": {
+					"color": "#FF6B6B",
+					"name": "Ana",
+					"score": 0
+				},
+				"u2": {
+					"color": "#2EC4B6",
+					"name": "Bia",
+					"score": 0
+				},
+				"u3": {
+					"color": "#6C5CE7",
+					"name": "Caio",
+					"score": 0
+				}
+			},
+			"premium": {
+				"activated_by": "",
+				"ad_free": false
+			},
+			"results": {},
+			"review": {
+				"approved": {},
+				"epochs": {},
+				"forced": false
+			},
+			"round": 1,
+			"round_id": "r1-abcdef",
+			"rounds": 2,
+			"schema": 2,
+			"status": "playing",
+			"stop_by": "",
+			"suggested": {},
+			"timer": 60,
+			"used": [
+				"C"
+			],
+			"version": 3
+		},
+		"tally": {
+			"u1:0": {
+				"missing": [],
+				"state": "approved",
+				"value": 5,
+				"votes": {
+					"u1": 5,
+					"u2": 5,
+					"u3": 5
+				}
+			},
+			"u1:1": {
+				"missing": [],
+				"state": "approved",
+				"value": 10,
+				"votes": {
+					"u1": 10,
+					"u2": 10,
+					"u3": 10
+				}
+			},
+			"u1:2": {
+				"missing": [],
+				"state": "approved",
+				"value": 10,
+				"votes": {
+					"u1": 10,
+					"u2": 10,
+					"u3": 10
+				}
+			},
+			"u2:0": {
+				"missing": [],
+				"state": "approved",
+				"value": 5,
+				"votes": {
+					"u1": 5,
+					"u2": 5,
+					"u3": 5
+				}
+			},
+			"u2:1": {
+				"missing": [],
+				"state": "divergent",
+				"value": 10,
+				"votes": {
+					"u1": 10,
+					"u2": 10,
+					"u3": 0
+				}
+			},
+			"u2:2": {
+				"auto": true,
+				"missing": [],
+				"state": "approved",
+				"value": 0,
+				"votes": {}
+			},
+			"u3:0": {
+				"auto": true,
+				"missing": [],
+				"state": "approved",
+				"value": 0,
+				"votes": {}
+			},
+			"u3:1": {
+				"auto": true,
+				"missing": [],
+				"state": "approved",
+				"value": 0,
+				"votes": {}
+			},
+			"u3:2": {
+				"auto": true,
+				"missing": [],
+				"state": "approved",
+				"value": 0,
+				"votes": {}
+			}
+		},
+		"vote_docs": [
+			{
+				"data": {
+					"done": true,
+					"mic": true,
+					"round_id": "r1-abcdef",
+					"votes": {
+						"u1:0": {
+							"e": 0,
+							"v": 5
+						},
+						"u1:1": {
+							"e": 0,
+							"v": 10
+						},
+						"u1:2": {
+							"e": 0,
+							"v": 10
+						},
+						"u2:0": {
+							"e": 0,
+							"v": 5
+						},
+						"u2:1": {
+							"e": 0,
+							"v": 10
+						}
+					}
+				},
+				"id": "u1"
+			},
+			{
+				"data": {
+					"done": true,
+					"mic": false,
+					"round_id": "r1-abcdef",
+					"votes": {
+						"u1:0": {
+							"e": 0,
+							"v": 5
+						},
+						"u1:1": {
+							"e": 0,
+							"v": 10
+						},
+						"u1:2": {
+							"e": 0,
+							"v": 10
+						},
+						"u2:0": {
+							"e": 0,
+							"v": 5
+						},
+						"u2:1": {
+							"e": 0,
+							"v": 10
+						}
+					}
+				},
+				"id": "u2"
+			},
+			{
+				"data": {
+					"done": false,
+					"mic": false,
+					"round_id": "r1-abcdef",
+					"votes": {
+						"u1:0": {
+							"e": 0,
+							"v": 5
+						},
+						"u1:1": {
+							"e": 0,
+							"v": 10
+						},
+						"u1:2": {
+							"e": 0,
+							"v": 10
+						},
+						"u2:0": {
+							"e": 0,
+							"v": 5
+						},
+						"u2:1": {
+							"e": 0,
+							"v": 0
+						}
+					}
+				},
+				"id": "u3"
+			}
+		]
+	},
+	"schema_version": 1,
+	"scoring": [
+		{
+			"answers": {
+				"u1": [
+					"Cinza",
+					"Corsa",
+					"Caqui"
+				],
+				"u2": [
+					"cinza",
+					"Camaro",
+					""
+				],
+				"u3": [
+					"Azul",
+					"Celta",
+					"Cereja"
+				]
+			},
+			"expected": {
+				"u1": [
+					5,
+					10,
+					10
+				],
+				"u2": [
+					5,
+					10,
+					0
+				],
+				"u3": [
+					0,
+					10,
+					10
+				]
+			},
+			"lang": "pt",
+			"letter": "C"
+		},
+		{
+			"answers": {
+				"u1": [
+					"苹果",
+					""
+				],
+				"u2": [
+					"苹果",
+					"香蕉"
+				]
+			},
+			"expected": {
+				"u1": [
+					5,
+					0
+				],
+				"u2": [
+					5,
+					10
+				]
+			},
+			"lang": "zh",
+			"letter": "P"
+		}
+	]
+}

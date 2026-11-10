@@ -1,0 +1,84 @@
+rules_version = '2';
+// Candidate for adedonha-stop ONLY. Coordinate the native client migration before deployment.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function google() { return signedIn() && request.auth.token.firebase.sign_in_provider == 'google.com'; }
+    function me(uid) { return signedIn() && request.auth.uid == uid; }
+    function text(value, min, max) { return value is string && value.size() >= min && value.size() <= max; }
+    function participant(code) {
+      return google() && request.auth.uid in get(/databases/$(database)/documents/rooms/$(code)).data.players;
+    }
+
+    // Native browser login exchange: preserved from the inspected Godot rules.
+    match /auth_links/{native} {
+      allow get, delete: if me(native);
+      allow list, update: if false;
+      allow create: if me(native)
+        && request.auth.token.firebase.sign_in_provider == 'anonymous'
+        && request.resource.data.keys().hasOnly(['proof', 'device', 'created_at'])
+        && request.resource.data.proof is string
+        && request.resource.data.proof.matches('^[a-f0-9]{48}$')
+        && text(request.resource.data.device, 1, 16)
+        && request.resource.data.created_at == request.time;
+      match /responses/{proof} {
+        function link() { return get(/databases/$(database)/documents/auth_links/$(native)).data; }
+        allow get, delete: if me(native);
+        allow list, update: if false;
+        allow create: if google()
+          && link().proof == proof
+          && link().created_at + duration.value(5, 'm') > request.time
+          && request.resource.data.keys().hasOnly(['google_uid', 'google_id_token', 'created_at'])
+          && request.resource.data.google_uid == request.auth.uid
+          && text(request.resource.data.google_id_token, 100, 16000)
+          && request.resource.data.created_at == request.time;
+      }
+    }
+    // Feedback: preserved; never exposes submissions to other clients.
+    match /feedback/{id} {
+      allow read, update, delete: if false;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['stars', 'text', 'platform', 'version', 'lang', 'created_at'])
+        && request.resource.data.stars is int && request.resource.data.stars >= 1 && request.resource.data.stars <= 5
+        && text(request.resource.data.text, 0, 1000)
+        && text(request.resource.data.platform, 1, 16)
+        && text(request.resource.data.version, 1, 16)
+        && text(request.resource.data.lang, 2, 8)
+        && request.resource.data.created_at == request.time;
+    }
+    match /users/{uid} {
+      allow get: if me(uid);
+      allow list, write: if false;
+      match /friends/{id} { allow read: if me(uid); allow write: if false; }
+      match /friend_requests/{id} { allow read: if me(uid); allow write: if false; }
+      match /history/{id} { allow read: if me(uid); allow write: if false; }
+      // Existing friend invite feature remains compatible.
+      match /invites/{room} {
+        allow read, delete: if me(uid);
+        allow create, update: if google()
+          && exists(/databases/$(database)/documents/users/$(uid)/friends/$(request.auth.uid))
+          && request.resource.data.keys().hasOnly(['from', 'from_name', 'room', 'created_at'])
+          && request.resource.data.from == request.auth.uid
+          && text(request.resource.data.from_name, 0, 24)
+          && request.resource.data.room == room
+          && room.matches('^[A-HJ-NP-Z2-9]{5}$')
+          && request.resource.data.created_at == request.time;
+      }
+    }
+    match /rooms/{code} {
+      allow get: if participant(code);
+      allow list, write: if false;
+      match /players/{uid} { allow get: if me(uid) && participant(code); allow list, write: if false; }
+      match /rounds/{round} { allow read: if participant(code); allow write: if false; }
+      match /votes/{uid} { allow read: if participant(code); allow write: if false; }
+    }
+    match /entitlements/{uid} { allow get: if me(uid); allow list, write: if false; }
+    match /tickets/{uid}/rooms/{code} { allow get: if me(uid); allow list, write: if false; }
+    match /friend_requests/{id} {
+      allow get: if google() && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
+      allow list, write: if false;
+    }
+    // No client access to purchase receipts, reward proofs, idempotency or rate-limit records.
+    match /{document=**} { allow read, write: if false; }
+  }
+}
