@@ -78,6 +78,15 @@ test("room membership, host-only settings and optimistic concurrency", async () 
   ]);
   assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
 });
+test("new guest joins using room code only without an inaccessible version", async () => {
+  const h = harness();
+  const r = await h.setup();
+  await h.sync("guest-no-version");
+  const joined = await h.call("rooms:join", "guest-no-version", {}, { code: r.code });
+  assert.equal(joined.players["guest-no-version"].present, true);
+  assert.equal(joined.version, r.version + 1);
+});
+
 test("ten player limit is atomic and reconnect does not duplicate players", async () => {
   const h = harness();
   const ids = Array.from({ length: 10 }, (_, i) => `u${i + 1}`);
@@ -218,70 +227,54 @@ test("final responses cannot be overwritten and sequence prevents delayed drafts
     "ANSWERS_FINAL",
   );
 });
-test("STOP grace keeps latest draft and accepts late final without zeroing", async () => {
+test("STOP freezes the latest saved drafts and transitions to review immediately", async () => {
   const h = harness();
   let r = await h.playing();
-  r = await h.roomCall(r, "rooms:answers", "u1", {
-    answers: ["Cinza", "", ""],
-    final: false,
-    sequence: 1,
-  });
-  r = await h.roomCall(r, "rooms:stop");
-  assert.equal(r.status, "playing");
   r = await h.roomCall(r, "rooms:answers", "u2", {
-    answers: ["Ciano", "", ""],
-    final: true,
-    sequence: 1,
+    answers: ["Ciano", "", ""], final: false, sequence: 1,
   });
-  r = await h.roomCall(r, "rooms:answers", "u1", {
-    answers: ["Cinza", "", ""],
-    final: true,
-    sequence: 2,
+  r = await h.roomCall(r, "rooms:stop", "u1", {
+    answers: ["Cinza", "", ""], sequence: 0,
   });
   assert.equal(r.status, "review");
-  assert.equal(r.answers.u1[0], "Cinza");
-  assert.equal(r.players.u1.score, 0);
+  assert.deepEqual(r.answers.u1, ["Cinza", "", ""]);
+  assert.deepEqual(r.answers.u2, ["Ciano", "", ""]);
+  await rejects(() => h.roomCall(r, "rooms:answers", "u2", {
+    answers: ["Cinza", "", ""], final: false, sequence: 2,
+  }), "INVALID_STATE");
 });
-test("expired grace freezes latest drafts, skips stale previous round documents", async () => {
+test("STOP ignores stale previous round documents", async () => {
   const h = harness();
   let r = await h.playing();
-  r = await h.roomCall(r, "rooms:answers", "u1", {
-    answers: ["Cinza", "", ""],
-    final: false,
-    sequence: 1,
-  });
-  const stored = h.repo.data.get(`rooms/${r.code}`);
-  stored.stop_at = Date.now() - 9000;
   h.repo.data.set(`rooms/${r.code}/players/u2`, {
-    round_id: "stale",
-    answers: ["Wrong", "Wrong", "Wrong"],
-    final: true,
+    round_id: "stale", answers: ["Wrong", "Wrong", "Wrong"], final: true,
   });
-  r = await h.call("get:game", "u1", {}, { code: r.code });
+  r = await h.roomCall(r, "rooms:stop", "u1", {
+    answers: ["Cinza", "", ""], sequence: 0,
+  });
   assert.equal(r.status, "review");
   assert.deepEqual(r.answers.u2, ["", "", ""]);
   assert.equal(r.answers.u1[0], "Cinza");
 });
-test("unanimity locks items; differences and missing votes stay pending", async () => {
+test("deviating from a suggestion requires unanimity only for the disputed answer", async () => {
   const h = harness();
   let r = await h.review();
-  r = await h.roomCall(r, "review:votes", "u1", {
-    votes: { "u1:0": { v: 5, e: 0 }, "u2:0": { v: 5, e: 0 } },
-  });
-  assert.deepEqual(r.review.approved, {});
+  r = await h.roomCall(r, "review:complete", "u1");
+  assert.equal(r.review.done.u1, true);
   r = await h.roomCall(r, "review:votes", "u2", {
-    votes: { "u1:0": { v: 10, e: 0 }, "u2:0": { v: 5, e: 0 } },
+    votes: { "u1:0": { v: 10, e: 0 } },
   });
-  assert.equal(r.review.approved["u2:0"], 5);
-  assert.equal(r.review.approved["u1:0"], undefined);
-  await rejects(() => h.roomCall(r, "review:next"), "REVIEW_PENDING");
-  await rejects(
-    () =>
-      h.roomCall(r, "review:votes", "u1", {
-        votes: { "u2:0": { v: 0, e: 0 } },
-      }),
-    "ITEM_LOCKED",
-  );
+  assert.equal(r.review.disputed["u1:0"], true);
+  assert.deepEqual(r.review.done, {});
+  await rejects(() => h.roomCall(r, "review:complete", "u1"), "REVIEW_PENDING");
+  r = await h.roomCall(r, "review:votes", "u1", {
+    votes: { "u1:0": { v: 10, e: 0 } },
+  });
+  assert.equal(r.review.approved["u1:0"], 10);
+  r = await h.roomCall(r, "review:complete", "u1");
+  r = await h.roomCall(r, "review:complete", "u2");
+  assert.equal(r.review.category, 1);
+  assert.equal(r.review.approved["u2:0"], r.suggested.u2[0]);
 });
 test("host reopen increments epoch, clears confirmations and rejects stale votes", async () => {
   const h = harness();
@@ -302,21 +295,22 @@ test("host reopen increments epoch, clears confirmations and rejects stale votes
     "INVALID_VOTE",
   );
 });
-test("force requires host decision, preserves approved scores and advances category atomically", async () => {
+test("leader decides disputed scores, preserves suggestions and advances", async () => {
   const h = harness();
   let r = await h.review();
-  await rejects(() => h.roomCall(r, "review:force"), "HOST_VOTE_MISSING");
-  r = await h.roomCall(r, "review:votes", "u1", {
-    votes: { "u1:0": { v: 5, e: 0 }, "u2:0": { v: 10, e: 0 } },
-  });
   r = await h.roomCall(r, "review:votes", "u2", {
-    votes: { "u1:0": { v: 5, e: 0 }, "u2:0": { v: 0, e: 0 } },
+    votes: { "u1:0": { v: 10, e: 0 } },
   });
-  await rejects(() => h.roomCall(r, "review:force", "u2"), "HOST_REQUIRED");
-  r = await h.roomCall(r, "review:force");
-  assert.equal(r.review.approved["u1:0"], 5);
-  assert.equal(r.review.approved["u2:0"], 10);
+  await rejects(() => h.roomCall(r, "review:force", "u1", { mode: "leader" }), "HOST_VOTE_MISSING");
+  r = await h.roomCall(r, "review:votes", "u1", {
+    votes: { "u1:0": { v: 0, e: 0 } },
+  });
+  await rejects(() => h.roomCall(r, "review:force", "u2", { mode: "leader" }), "HOST_REQUIRED");
+  r = await h.roomCall(r, "review:force", "u1", { mode: "leader" });
+  assert.equal(r.review.approved["u1:0"], 0);
+  assert.equal(r.review.approved["u2:0"], r.suggested.u2[0]);
   assert.equal(r.review.category, 1);
+  assert.equal(r.review.decisions[0].mode, "leader");
   assert.equal(r.players.u1.score, 0);
 });
 test("collective finish, unlock, atomic score consolidation and history", async () => {

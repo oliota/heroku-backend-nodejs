@@ -1,4 +1,7 @@
-import { cert, getApps, initializeApp } from "firebase-admin/app";
+import { applicationDefault, cert, getApps, initializeApp } from "firebase-admin/app";
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { ApiError } from "./errors.js";
@@ -14,17 +17,24 @@ export function firebase() {
     /\\n/g,
     "\n",
   );
-  if (!clientEmail || !privateKey)
+  const adcPath = process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+    (process.platform === "win32"
+      ? join(process.env.APPDATA || join(homedir(), "AppData", "Roaming"), "gcloud", "application_default_credentials.json")
+      : join(homedir(), ".config", "gcloud", "application_default_credentials.json"));
+  const hasServiceAccount = !!(clientEmail && privateKey);
+  if (!hasServiceAccount && !existsSync(adcPath))
     throw new ApiError(
       503,
       "BACKEND_UNAVAILABLE",
-      "Adedonha Firebase credentials are not configured",
+      "Adedonha Admin credentials are not configured",
     );
   try {
     const app =
       getApps().find((a) => a.name === "adedonha-stop-admin") ||
       initializeApp(
-        { projectId, credential: cert({ projectId, clientEmail, privateKey }) },
+        { projectId, credential: hasServiceAccount
+            ? cert({ projectId, clientEmail, privateKey })
+            : applicationDefault() },
         "adedonha-stop-admin",
       );
     cached = { auth: getAuth(app), db: getFirestore(app) };

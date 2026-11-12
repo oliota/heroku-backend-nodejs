@@ -1,6 +1,16 @@
 {
-  "watch": ["."],
+  "watch": [
+    "index.js",
+    "adedonha",
+    "config",
+    "controllers",
+    "routes"
+  ],
   "ext": "js,json",
-  "ignore": ["node_modules"],
+  "ignore": [
+    "node_modules",
+    "tests",
+    "docs"
+  ],
   "exec": "node index.js"
 }

@@ -1,4 +1,4 @@
-import { createHash, randomUUID, randomInt } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { ApiError, assert } from "./errors.js";
 import { rules, code, settings, text, object, scoreAnswers } from "./rules.js";
 import { billingIdentity } from "./stores.js";
@@ -27,6 +27,17 @@ const itemKeys = (room) =>
   );
 const categoryKeys = (room) =>
   room.participants.map((uid) => `${uid}:${room.review.category}`);
+const suggestion = (room, key) => {
+  const split = key.lastIndexOf(":");
+  return Number(room.suggested[key.slice(0, split)]?.[Number(key.slice(split + 1))] ?? 0);
+};
+const resolved = (room, key) =>
+  !room.review.disputed?.[key] || Object.hasOwn(room.review.approved, key);
+const categoryResolved = (room) => categoryKeys(room).every((key) => resolved(room, key));
+const lockCategory = (room) => {
+  for (const key of categoryKeys(room))
+    room.review.approved[key] ??= suggestion(room, key);
+};
 const allApproved = (room) =>
   itemKeys(room).every((k) => Object.hasOwn(room.review.approved, k));
 const allDone = (room) =>
@@ -224,12 +235,22 @@ export class AdedonhaService {
         assert(friendCode, 503, "CODE_ALLOCATION_FAILED");
         tx.set(`friend_codes/${friendCode}`, { uid });
       }
-      const name = text(input.name ?? old?.name ?? user.name ?? "Player", 40);
+      const guest = user.firebase?.sign_in_provider === "anonymous";
+      const name = guest
+        ? input.name ?? old?.name
+        : user.firebase?.sign_in_provider === "google.com"
+          ? user.email ?? old?.name ?? user.name ?? "Player"
+          : input.name ?? old?.name ?? user.name ?? "Player";
+      if (guest) {
+        assert(typeof name === "string" && name.trim().length > 0, 400, "NICKNAME_REQUIRED");
+        assert(Array.from(name.trim()).length >= 2 && Array.from(name.trim()).length <= 24, 400, "INVALID_NICKNAME");
+      }
+      const validatedName = text(name, guest ? 24 : 254);
       const color = input.color ?? old?.color ?? "#2EC4B6";
       assert(/^#[0-9A-Fa-f]{6}$/.test(color), 400, "INVALID_COLOR");
       const profile = {
         uid,
-        name,
+        name: validatedName,
         color,
         friend_code: friendCode,
         games: old?.games ?? 0,
@@ -333,6 +354,7 @@ export class AdedonhaService {
         round_id: "",
         letter: "",
         selected_letter: "",
+        spinner_uid: uid,
         used: [],
         players: {
           [uid]: {
@@ -375,6 +397,7 @@ export class AdedonhaService {
       "ROOM_MIGRATION_REQUIRED",
       "This room uses the legacy client-authoritative protocol",
     );
+    let updateVersion = true;
     if (action === "rooms:join") {
       object(input, ["version"]);
       state(room, "lobby", "letter_selection", "playing", "review", "results");
@@ -382,7 +405,7 @@ export class AdedonhaService {
         room.players[uid].present = true;
         room.players[uid].last_seen = now();
       } else {
-        this.version(room, input);
+        if (input.version !== undefined) this.version(room, input);
         state(room, "lobby");
         assert(Object.keys(room.players).length < 10, 409, "ROOM_FULL");
         const p = await tx.get(profilePath);
@@ -407,6 +430,12 @@ export class AdedonhaService {
           tx.set(path, room);
         }
         return snapshot(room);
+      }
+      if (action === "get:answers") {
+        const draft = await tx.get(`rooms/${room.code}/players/${uid}`);
+        return draft?.round_id === room.round_id
+          ? { round_id: draft.round_id, sequence: draft.sequence, answers: draft.answers, final: draft.final }
+          : { round_id: room.round_id, sequence: -1, answers: room.categories.map(() => ""), final: false };
       }
       if (action === "get:players")
         return {
@@ -460,17 +489,18 @@ export class AdedonhaService {
           "review",
           "results",
         );
+        updateVersion = room.players[uid].present !== true;
         room.players[uid].present = true;
         room.players[uid].last_seen = now();
       } else {
-        this.version(room, input);
+        if (action === "rooms:answers")
+          assert(Number.isSafeInteger(input.version), 400, "INVALID_VERSION");
+        else this.version(room, input);
         if (
           [
             "rooms:settings",
             "rooms:start",
             "rooms:rounds",
-            "rooms:select",
-            "rooms:confirm",
             "rooms:close",
             "review:reopen",
             "review:force",
@@ -496,6 +526,10 @@ export class AdedonhaService {
             );
             if (next) room.host = next;
           }
+          if (room.spinner_uid === uid && room.status === "letter_selection") {
+            room.spinner_uid = room.host;
+            room.selected_letter = "";
+          }
           if (!Object.keys(room.players).length) {
             room.status = "closed";
             room.premium.ad_free = false;
@@ -512,6 +546,8 @@ export class AdedonhaService {
             room.round_id = `r${room.round}-${randomUUID()}`;
             room.letter = "";
             room.selected_letter = "";
+            room.spinner_uid = room.players[room.spinner_uid]?.present
+              ? room.spinner_uid : room.host;
             room.answers = {};
             room.suggested = {};
             room.review = {};
@@ -526,7 +562,7 @@ export class AdedonhaService {
               room.used = [];
               pool = Array.from(room.letters);
             }
-            room.selected_letter = pool[randomInt(pool.length)];
+            room.selected_letter = "";
           }
         } else {
           assert(
@@ -534,7 +570,17 @@ export class AdedonhaService {
             409,
             "STALE_ROUND",
           );
-          if (action === "rooms:select") {
+          if (action === "rooms:delegate") {
+            object(input, ["version", "round_id", "game_id", "spinner_uid"]);
+            state(room, "letter_selection");
+            assert(uid === room.host || uid === (room.spinner_uid || room.host), 403, "SPINNER_REQUIRED");
+            assert(typeof input.spinner_uid === "string" &&
+              room.participants.includes(input.spinner_uid) &&
+              room.players[input.spinner_uid]?.present, 400, "INVALID_SPINNER");
+            room.spinner_uid = input.spinner_uid;
+            room.selected_letter = "";
+          } else if (action === "rooms:select") {
+            assert(uid === (room.spinner_uid || room.host), 403, "SPINNER_REQUIRED");
             object(input, ["version", "round_id", "game_id", "letter"]);
             state(room, "letter_selection");
             assert(
@@ -547,6 +593,7 @@ export class AdedonhaService {
             );
             room.selected_letter = input.letter;
           } else if (action === "rooms:confirm") {
+            assert(uid === (room.spinner_uid || room.host), 403, "SPINNER_REQUIRED");
             object(input, ["version", "round_id", "game_id", "letter"]);
             state(room, "letter_selection");
             assert(
@@ -576,12 +623,7 @@ export class AdedonhaService {
               room.stop_at = room.deadline;
               room.stop_by = "timer";
             }
-            assert(
-              !room.stop_at ||
-                now() <= room.stop_at + rules.online.submit_grace_ms,
-              409,
-              "ANSWERS_FROZEN",
-            );
+            assert(!room.stop_at, 409, "ANSWERS_FROZEN");
             assert(
               Array.isArray(input.answers) &&
                 input.answers.length === room.categories.length &&
@@ -614,13 +656,39 @@ export class AdedonhaService {
               submitted_at: now(),
             });
             await this.beginReview(tx, room);
+            if (room.status === "playing") return snapshot(room);
           } else if (action === "rooms:stop") {
-            object(input, ["version", "round_id", "game_id"]);
+            object(input, ["version", "round_id", "game_id", "answers", "sequence"]);
             state(room, "playing");
-            if (!room.stop_at) {
-              room.stop_by = uid;
-              room.stop_at = now();
+            if (input.answers !== undefined) {
+              assert(
+                Array.isArray(input.answers) &&
+                  input.answers.length === room.categories.length &&
+                  Number.isSafeInteger(input.sequence) && input.sequence >= 0,
+                400,
+                "INVALID_ANSWERS",
+              );
+              const answerPath = `rooms/${room.code}/players/${uid}`;
+              const old = await tx.get(answerPath);
+              assert(
+                !old || old.round_id !== room.round_id ||
+                  input.sequence > old.sequence ||
+                  (input.sequence === old.sequence && !old.final &&
+                    JSON.stringify(old.answers) === JSON.stringify(input.answers)),
+                409,
+                "STALE_ANSWERS",
+              );
+              tx.set(answerPath, {
+                round: room.round,
+                round_id: room.round_id,
+                answers: input.answers.map((a) => text(a, 40, false)),
+                final: true,
+                sequence: input.sequence,
+                submitted_at: now(),
+              });
             }
+            room.stop_by = uid;
+            room.stop_at = now();
             await this.beginReview(tx, room);
           } else if (action.startsWith("review:")) {
             await this.beginReview(tx, room);
@@ -631,7 +699,7 @@ export class AdedonhaService {
       }
     }
     delete room._changed;
-    room.version++;
+    if (updateVersion) room.version++;
     room.updated_at = now();
     tx.set(path, room);
     return snapshot(room);
@@ -675,11 +743,6 @@ export class AdedonhaService {
     const docs = await Promise.all(
       room.participants.map((id) => tx.get(`rooms/${room.code}/players/${id}`)),
     );
-    const complete = docs.every(
-      (d) => d?.round_id === room.round_id && d.final,
-    );
-    if (!complete && now() < room.stop_at + rules.online.submit_grace_ms)
-      return;
     assert(
       room.letter && room.used.includes(room.letter),
       409,
@@ -702,29 +765,33 @@ export class AdedonhaService {
     room.review = {
       category: 0,
       approved: {},
+      disputed: {},
       epochs: {},
       votes: {},
       done: {},
       forced: false,
       forced_categories: [],
+      decisions: [],
     };
     room.status = "review";
     room._changed = true;
   }
   async review(tx, room, action, uid, input) {
     const fields = ["version", "round_id", "game_id"];
+    room.review.disputed ??= {};
+    room.review.decisions ??= [];
     if (action === "review:votes") {
       object(input, [...fields, "votes"]);
       assert(room.participants.includes(uid), 403, "NOT_PARTICIPANT");
       assert(
-        input.votes &&
-          typeof input.votes === "object" &&
+        input.votes && typeof input.votes === "object" &&
           !Array.isArray(input.votes) &&
           Object.keys(input.votes).length > 0 &&
           Object.keys(input.votes).length <= 120,
         400,
         "INVALID_VOTES",
       );
+      let newDispute = false;
       for (const [key, vote] of Object.entries(input.votes)) {
         assert(categoryKeys(room).includes(key), 400, "INVALID_ITEM");
         assert(!Object.hasOwn(room.review.approved, key), 409, "ITEM_LOCKED");
@@ -735,29 +802,31 @@ export class AdedonhaService {
           409,
           "INVALID_VOTE",
         );
-        room.review.votes[uid] ??= {};
-        room.review.votes[uid][key] = vote;
+        if (vote.v !== suggestion(room, key) && !room.review.disputed[key]) {
+          room.review.disputed[key] = true;
+          newDispute = true;
+        }
+        if (room.review.disputed[key]) {
+          room.review.votes[uid] ??= {};
+          room.review.votes[uid][key] = vote;
+        }
       }
-      room.review.done[uid] = false;
+      if (newDispute) room.review.done = {};
+      else room.review.done[uid] = false;
       for (const key of categoryKeys(room)) {
-        const votes = room.participants.map(
-          (id) => room.review.votes[id]?.[key],
-        );
+        if (!room.review.disputed[key]) continue;
+        const votes = room.participants.map((id) => room.review.votes[id]?.[key]);
         if (
           votes.every((v) => v && v.e === (room.review.epochs[key] ?? 0)) &&
           votes.every((v) => v.v === votes[0].v)
-        )
-          room.review.approved[key] = votes[0].v;
+        ) room.review.approved[key] = votes[0].v;
       }
     } else if (action === "review:reopen") {
       object(input, [...fields, "key"]);
       assert(itemKeys(room).includes(input.key), 400, "INVALID_ITEM");
-      assert(
-        Object.hasOwn(room.review.approved, input.key),
-        409,
-        "ITEM_NOT_APPROVED",
-      );
+      assert(Object.hasOwn(room.review.approved, input.key), 409, "ITEM_NOT_APPROVED");
       delete room.review.approved[input.key];
+      room.review.disputed[input.key] = true;
       room.review.epochs[input.key] = (room.review.epochs[input.key] ?? 0) + 1;
       room.review.category = Math.min(
         room.review.category,
@@ -766,35 +835,78 @@ export class AdedonhaService {
       room.review.done = {};
     } else if (action === "review:complete") {
       object(input, fields);
-      assert(allApproved(room), 409, "REVIEW_PENDING");
+      assert(categoryResolved(room), 409, "REVIEW_PENDING");
       room.review.done[uid] = true;
+      if (allDone(room)) {
+        lockCategory(room);
+        if (room.review.category < room.categories.length - 1) {
+          room.review.category++;
+          room.review.done = {};
+        }
+      }
     } else if (action === "review:unlock") {
       object(input, fields);
       room.review.done[uid] = false;
     } else if (action === "review:force" || action === "review:next") {
-      object(input, fields);
+      object(input, [...fields, "mode", "scores"]);
       if (action === "review:force") {
+        const mode = input.mode ?? "leader";
+        assert(["leader", "majority"].includes(mode), 400, "INVALID_DECISION_MODE");
+        const scores = input.scores ?? {};
+        assert(typeof scores === "object" && !Array.isArray(scores), 400, "INVALID_VOTES");
+        assert(Object.keys(scores).every((key) => categoryKeys(room).includes(key) && [0, 5, 10].includes(scores[key])), 400, "INVALID_VOTE");
+        const decisions = {};
         for (const key of categoryKeys(room)) {
-          if (Object.hasOwn(room.review.approved, key)) continue;
-          const vote = room.review.votes[uid]?.[key];
-          assert(
-            vote && vote.e === (room.review.epochs[key] ?? 0),
-            409,
-            "HOST_VOTE_MISSING",
-          );
-          room.review.approved[key] = vote.v;
+          if (Object.hasOwn(room.review.approved, key)) {
+            decisions[key] = room.review.approved[key];
+            continue;
+          }
+          if (!room.review.disputed[key]) {
+            decisions[key] = suggestion(room, key);
+            room.review.approved[key] = decisions[key];
+            continue;
+          }
+          const votes = room.participants.map((id) => room.review.votes[id]?.[key])
+            .filter((v) => v?.e === (room.review.epochs[key] ?? 0));
+          const leaderVote = room.review.votes[uid]?.[key];
+          const hostValue = scores[key] ?? (leaderVote?.e === (room.review.epochs[key] ?? 0) ? leaderVote.v : undefined);
+          if (mode === "leader") {
+            assert(hostValue !== undefined, 409, "HOST_VOTE_MISSING");
+            decisions[key] = hostValue;
+          } else {
+            assert(votes.length > 0, 409, "REVIEW_PENDING");
+            const counts = [0, 5, 10].map((value) => ({ value, count: votes.filter((v) => v.v === value).length }));
+            const maximum = Math.max(...counts.map((c) => c.count));
+            const tied = counts.filter((c) => c.count === maximum).map((c) => c.value);
+            assert(tied.length === 1 || (hostValue !== undefined && tied.includes(hostValue)), 409, "HOST_VOTE_MISSING");
+            decisions[key] = tied.length === 1 ? tied[0] : hostValue;
+          }
+          room.review.approved[key] = decisions[key];
         }
+        lockCategory(room);
         room.review.forced = true;
-        if (!room.review.forced_categories.includes(room.review.category))
-          room.review.forced_categories.push(room.review.category);
+        room.review.forced_categories.push(room.review.category);
+        room.review.decisions.push({
+          category: room.review.category,
+          mode,
+          by: uid,
+          scores: decisions,
+          at: now(),
+        });
+        if (room.review.category < room.categories.length - 1) {
+          room.review.category++;
+          room.review.done = {};
+        } else {
+          room.review.done = Object.fromEntries(room.participants.map((id) => [id, true]));
+        }
+      } else {
+        assert(categoryResolved(room) && allDone(room), 409, "REVIEW_PENDING");
+        lockCategory(room);
+        if (room.review.category < room.categories.length - 1) {
+          room.review.category++;
+          room.review.done = {};
+        }
       }
-      assert(
-        categoryKeys(room).every((k) => Object.hasOwn(room.review.approved, k)),
-        409,
-        "REVIEW_PENDING",
-      );
-      if (room.review.category < room.categories.length - 1)
-        room.review.category++;
     } else throw new ApiError(404, "NOT_FOUND");
     if (allApproved(room) && allDone(room)) {
       room.results = Object.fromEntries(
@@ -810,6 +922,7 @@ export class AdedonhaService {
         game_id: room.game_id,
         round_id: room.round_id,
         letter: room.letter,
+        used: room.used,
         categories: room.categories,
         participants: room.participants,
         answers: room.answers,

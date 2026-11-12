@@ -3,7 +3,7 @@ import { assert, ApiError } from "./errors.js";
 export function cors(req, res, next) {
   const allowed = (
     process.env.ADEDONHA_CORS_ORIGINS ||
-    "https://oliota.com,http://localhost:3000,http://localhost:3002"
+    "https://oliota.com,https://www.oliota.com,http://localhost:3000,http://localhost:3002"
   )
     .split(",")
     .map((s) => s.trim());
@@ -66,9 +66,9 @@ export function authenticate(getAuth) {
         throw new ApiError(401, "INVALID_TOKEN");
       }
       assert(
-        user.firebase?.sign_in_provider === "google.com",
+        ["google.com", "anonymous"].includes(user.firebase?.sign_in_provider),
         403,
-        "GOOGLE_LOGIN_REQUIRED",
+        "PROVIDER_NOT_ALLOWED",
       );
       req.user = user;
       next();

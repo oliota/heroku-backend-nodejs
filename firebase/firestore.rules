@@ -7,7 +7,7 @@ service cloud.firestore {
     function me(uid) { return signedIn() && request.auth.uid == uid; }
     function text(value, min, max) { return value is string && value.size() >= min && value.size() <= max; }
     function participant(code) {
-      return google() && request.auth.uid in get(/databases/$(database)/documents/rooms/$(code)).data.players;
+      return signedIn() && request.auth.uid in get(/databases/$(database)/documents/rooms/$(code)).data.players;
     }
 
     // Native browser login exchange: preserved from the inspected Godot rules.

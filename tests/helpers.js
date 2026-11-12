@@ -118,7 +118,10 @@ export function harness(options = {}) {
         );
         room = await roomCall(room, "review:votes", voter, { votes });
       }
-      room = await roomCall(room, "review:next");
+      if (i < room.categories.length - 1) {
+        for (const voter of room.participants)
+          room = await roomCall(room, "review:complete", voter);
+      }
     }
     return room;
   };

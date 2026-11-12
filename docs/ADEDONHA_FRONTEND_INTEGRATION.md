@@ -76,7 +76,7 @@ Room mutations require `version` equal to the latest snapshot unless stated othe
 | ------ | ------------------------------ | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | POST   | `/rooms`                       | `{settings?:{lang?,categories?,letters?,rounds?,timer?}}`         | Synced user; creates and joins; 201 R                                                                             |
 | GET    | `/rooms/:code`                 | —                                                                 | Member; R                                                                                                         |
-| POST   | `/rooms/:code/join`            | `{version?:integer}`                                              | New user: lobby and current version required. Existing member: reconnect at any active state, version optional. R |
+| POST   | `/rooms/:code/join`            | `{version?:integer}`                                              | New user: room code only in lobby; version optional for optimistic locking. Existing member: reconnect at any active state, version optional. R |
 | POST   | `/rooms/:code/leave`           | V                                                                 | Member; R                                                                                                         |
 | POST   | `/rooms/:code/start`           | V                                                                 | Leader, lobby → letter_selection; R                                                                               |
 | PATCH  | `/rooms/:code/settings`        | `{version,settings:{lang?,categories?,letters?,rounds?,timer?}}`  | Leader, lobby; R                                                                                                  |
@@ -156,13 +156,13 @@ Creation includes owner entry, so a verified Golden Wheel owner activates the pe
 
 Send heartbeat approximately every 25 seconds while foregrounded, and mark UI presence stale if `Date.now()-last_seen>60000`, regardless of persisted `present:true`. Reconnect through `/join` and reload `/game`; this does not consume another ticket or duplicate membership. New players cannot join after lobby. The participants list is frozen for each round; disconnects do not silently exclude voters.
 
-Answers must exactly match the category array length. `sequence` is an increasing nonnegative integer per player/round; final submissions are immutable. Drafts live in private player documents, never in the room during playing. `STOP` persists `stop_by/stop_at`; the room remains playing during an 8-second final-submit grace. It enters review when all finals arrive or grace expires. The latest current-round draft is preserved; stale previous-round documents are ignored. A player with no current-round submission has empty strings. Posts after the deadline/grace do not erase drafts.
+Answers must exactly match the category array length. `sequence` is an increasing nonnegative integer per player/round. Drafts are stored in private player documents. `POST /stop` accepts the caller's final `answers` and `sequence` atomically, persists `stop_by/stop_at`, freezes the latest received draft for every participant and immediately transitions the room to review. No post-STOP grace window exists. Other players cannot submit after STOP; stale previous-round documents are ignored. A player with no current-round draft has empty strings.
 
-Timer/grace advancement is transactional and demand-driven: after STOP, poll `/game` roughly every second until review, even when also listening to Firestore. Snapshot listeners alone do not execute server transitions. `timer:0` has no deadline. Confirmed letters persist for the whole round; scoring requires a confirmed letter, never a wheel index. Normalized plausible unique answers suggest 10, repeated answers 5, invalid answers 0; Chinese only requires nonempty normalized text. Suggestions do not change scores.
+Timer advancement is transactional and demand-driven: when the configured deadline passes, `/game` transitions the room to review. `POST /stop` transitions immediately; listen to the Firestore room document and poll `/game` as a fallback. Snapshot listeners alone do not execute timer transitions. `timer:0` has no deadline. Confirmed letters persist for the whole round; scoring requires a confirmed letter, never a wheel index. Normalized plausible unique answers suggest 10, repeated answers 5, invalid answers 0; Chinese only requires nonempty normalized text. Suggestions do not change scores.
 
 ## Review and voting
 
-All review mutations use Q. Category identifiers are **zero-based indices**, not localized names. Every participant votes on each item, including empty answers and their own. The API intentionally requires explicit votes for empty answers too; legacy Godot auto-approval of blanks is not used because this API requires unanimity from every enabled participant.
+All review mutations use Q. Category identifiers are **zero-based indices**, not localized names. Automatic suggested 0/5/10 scores are accepted by default, including for empty answers and self. Explicit votes are required only when someone changes an item's suggested score: that item becomes disputed and all participants must vote on it. Unanimity approves a disputed item. The leader may instead decide using the majority (breaking a tie with the leader's vote) or their explicit final vote.
 
 | Method | Path                            | Body                                | Permission / response                                   |
 | ------ | ------------------------------- | ----------------------------------- | ------------------------------------------------------- |
@@ -172,7 +172,7 @@ All review mutations use Q. Category identifiers are **zero-based indices**, not
 | POST   | `/rooms/:code/review/complete`  | Q                                   | Participant; confirms done after all items approved; R  |
 | POST   | `/rooms/:code/review/unlock`    | Q                                   | Participant; withdraws own done flag while in review; R |
 | POST   | `/rooms/:code/review/reopen`    | `{...Q,key:"uidA:0"}`               | Leader, approved item only; R                           |
-| POST   | `/rooms/:code/review/force`     | Q                                   | Leader; force current category, then advance; R         |
+| POST   | `/rooms/:code/review/force`     | `{...Q,mode:"majority"\|"leader"}`   | Leader; decide disputed scores and advance; R           |
 | POST   | `/rooms/:code/review/next`      | Q                                   | Leader; current category must be fully approved; R      |
 
 Review view: `{round_id,version,letter,categories,answers,suggested,review,category}`. `answers` maps each UID to its ordered string array. Review map:
@@ -301,3 +301,21 @@ Transactions serialize contested seats, friendships/counters, ticket/event consu
 - [Firestore security rules](https://firebase.google.com/docs/firestore/security/get-started)
 - [Google Play product verification](https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.products)
 - [Apple App Store Server library](https://github.com/apple/app-store-server-library-node)
+
+
+## Review confirmation by category (2026-11-10)
+
+New contract: STOP enters review immediately using the latest received drafts. Each word keeps its suggested 0/5/10 score until a participant chooses a different score. Only disputed words require current-epoch votes from every participant and unanimous agreement. `POST /rooms/:code/review/complete` confirms **the active category**; once all participants confirm, default suggestions and unanimous disputed scores are locked and the next category opens. The last category consolidates results. A leader can use `review/force` with `mode: "majority"` (leader breaks ties) or `mode: "leader"` (leader's explicit vote wins), which immediately advances and adds a `review.decisions` item for every client to show in a decision summary. `review/unlock` withdraws an individual's confirmation.
+
+`GET /rooms/:code/answers/me` returns the authenticated participant's private draft `{round_id, sequence, answers, final}` for the active room/round; if none exists, it returns `sequence: -1` and empty answers. Use this endpoint to restore draft text and the next sequence after reconnection. Do not read another player's draft before review.
+
+
+## Spinner delegation (schema 2)
+
+The server includes `spinner_uid` in room snapshots. It defaults to the host when the room is created and remains associated with the current player across rounds while that player is present. The current spinner or the host may delegate the next spin to an active participant during `letter_selection`:
+
+`POST /api/v1/adedonha/rooms/:code/spinner`
+
+Body: `{ "version": 12, "game_id": "...", "round_id": "...", "spinner_uid": "firebase-uid" }`; header `Idempotency-Key` is required. The server responds with the updated room snapshot. A nonparticipant cannot be selected. `letters/select` and `letters/confirm` are authorized for `spinner_uid` instead of `host` (with a host fallback for older rooms). When a new round starts, `selected_letter` is empty; clients must not reveal an unconfirmed letter to non-spinners. Non-spinners should animate the wheel continuously until the confirmed round letter is published.
+
+Answer drafts use monotonically increasing `sequence` and are scoped to the current `game_id`/`round_id`. A normal `PUT /rooms/:code/answers` that only persists a draft does not increment the shared room version; the server still checks participant access and the exact round IDs. This prevents `STALE_VERSION` collisions between concurrent writers without accepting stale-round answers.

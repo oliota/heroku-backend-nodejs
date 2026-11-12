@@ -113,14 +113,14 @@ test("REST authentication, CORS, JSON validation and network failures are saniti
   const base = `${await listen(t, application)}/api/v1/adedonha`;
   for (const [token, status, code] of [
     ["invalid", 401, "INVALID_TOKEN"],
-    ["anonymous", 403, "GOOGLE_LOGIN_REQUIRED"],
+    ["anonymous", 200, null],
     ["network", 503, "BACKEND_UNAVAILABLE"],
   ]) {
     const r = await fetch(`${base}/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     assert.equal(r.status, status);
-    assert.equal((await r.json()).error.code, code);
+    if (code) assert.equal((await r.json()).error.code, code);
   }
   let r = await fetch(`${base}/me`, {
     method: "OPTIONS",
@@ -155,7 +155,7 @@ test("every requested protected endpoint is registered and reaches authenticatio
   const application = express();
   application.use("/api/v1/adedonha", createAdedonhaRouter());
   const base = await listen(t, application);
-  assert.equal(endpoints.length, 43);
+  assert.equal(endpoints.length, 45);
   for (const [method, path] of endpoints) {
     const url = path
       .replace(":code", "ABCDE")
